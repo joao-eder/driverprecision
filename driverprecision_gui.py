@@ -38,7 +38,8 @@ def _elevar_se_preciso() -> bool:
 
 
 class App:
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Tk, parent=None) -> None:
+        parent = parent or root
         self.root = root
         self.q: queue.Queue = queue.Queue()
         self.estado: dict | None = None
@@ -61,13 +62,13 @@ class App:
         st.configure("Treeview", rowheight=26, font=("Segoe UI", 10))
         st.configure("Treeview.Heading", font=("Segoe UI Semibold", 10))
 
-        topo = ttk.Frame(root, padding=(20, 16, 20, 4))
+        topo = ttk.Frame(parent, padding=(20, 16, 20, 4))
         topo.pack(fill="x")
         ttk.Label(topo, text="Drivers do seu computador", style="Titulo.TLabel").pack(anchor="w")
         ttk.Label(topo, text="Encontra e instala o driver certo de cada peça, direto do fabricante. "
                              "Nada de driver genérico.", style="Sub.TLabel", wraplength=760).pack(anchor="w")
 
-        self.corpo = ttk.Frame(root, padding=(20, 10))
+        self.corpo = ttk.Frame(parent, padding=(20, 10))
         self.corpo.pack(fill="both", expand=True)
 
         self.msg = ttk.Label(self.corpo, text="Clique em Verificar agora. Leva de 1 a 3 minutos.",
@@ -96,7 +97,7 @@ class App:
         self.txt = tk.Text(self.det_frame, height=10, font=("Consolas", 9), wrap="word", state="disabled")
         self.txt.pack(fill="both", expand=True)
 
-        base = ttk.Frame(root, padding=(20, 8, 20, 16))
+        base = ttk.Frame(parent, padding=(20, 8, 20, 16))
         base.pack(fill="x")
         self.btn = ttk.Button(base, text="Verificar agora", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
@@ -175,6 +176,7 @@ class App:
 
     # ------------------------------------------------------------------ verificar
     def verificar(self) -> None:
+        dp.set_logger(lambda m: self.q.put(("log", m)))
         self._ocupado("Verificando o hardware e procurando os drivers certos...")
         self.txt.configure(state="normal")
         self.txt.delete("1.0", "end")
@@ -258,6 +260,7 @@ class App:
                 "A tela pode piscar e a internet pode cair por alguns segundos durante a instalação. "
                 "Não desligue o computador.", icon="info"):
             return
+        dp.set_logger(lambda m: self.q.put(("log", m)))
         self._ocupado("Preparando a instalação...")
 
         def trabalho():
@@ -311,7 +314,15 @@ def run_gui() -> None:
     except Exception:
         pass
     root = tk.Tk()
-    App(root)
+    nb = ttk.Notebook(root)
+    nb.pack(fill="both", expand=True)
+    abas = [ttk.Frame(nb) for _ in range(3)]
+    for f, t in zip(abas, ("  Drivers  ", "  Jogos  ", "  Otimização avançada  ")):
+        nb.add(f, text=t)
+    App(root, abas[0])
+    from driverprecision_abas import AbaJogos, AbaOtimizacao
+    AbaJogos(root, abas[1])
+    AbaOtimizacao(root, abas[2])
     root.mainloop()
 
 

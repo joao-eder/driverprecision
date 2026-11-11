@@ -2,6 +2,14 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] - 2026-11-11
+
+### Adicionado
+- Aba **Jogos**: verifica e instala o que os jogos precisam para abrir — Visual C++ 2005 a 2022 (x86/x64), DirectX 9/10/11 legado (d3dx9, XInput 1.3, XAudio 2.7), .NET Framework 3.5/4.8, .NET Desktop Runtime 8/10, XNA 4.0, OpenAL, WebView2, DirectPlay (opcional) e checagem do Vulkan. Downloads só de links oficiais, com assinatura digital conferida.
+- Detecta Visual C++ 2015-2022 abaixo de 14.40 (jogos compilados com VS 2022 17.10+ fecham ao abrir com runtime antigo).
+- Aba **Otimização avançada**: 18 ajustes em 7 categorias (energia/CPU, placa de vídeo, MMCSS, rede, mouse, Windows, segurança x desempenho), cada um com risco, estado atual e explicação. Backup do valor original, ponto de restauração, "Desfazer marcados" e "Desfazer tudo".
+- Ajuste de timer (BCD) bloqueado com BitLocker ativo, para não disparar pedido de chave de recuperação.
+
 ## [1.0.0] - 2026-11-11
 
 ### Adicionado
@@ -18,4 +26,5 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.1.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.1.0
 [1.0.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.0.0

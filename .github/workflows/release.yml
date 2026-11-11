@@ -32,7 +32,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyinstaller==6.11.1
-          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui driverprecision.py
+          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza driverprecision.py
 
       - name: Montar pacotes
         shell: pwsh
@@ -40,7 +40,7 @@ jobs:
           $tag = "${{ github.ref_name }}"
           New-Item -ItemType Directory -Force out, "src\DriverPrecision-$tag" | Out-Null
           Copy-Item dist\DriverPrecision.exe out\
-          Copy-Item driverprecision.py, driverprecision_gui.py, executar.bat, README.md, LICENSE, CHANGELOG.md "src\DriverPrecision-$tag\"
+          Copy-Item driverprecision*.py, executar.bat, README.md, LICENSE, CHANGELOG.md "src\DriverPrecision-$tag\"
           Compress-Archive -Path "src\DriverPrecision-$tag" -DestinationPath "out\DriverPrecision-$tag.zip"
           Get-ChildItem out -File | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name

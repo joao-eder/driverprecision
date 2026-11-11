@@ -31,6 +31,23 @@ Crie uma função `fonte_<nome>(sysinfo, devs, sistema) -> str` em `driverprecis
 - Registre em `fabricante()` e no dicionário de fontes dentro de `scan()`.
 - Adicione testes em `tests/` com XML de exemplo (sem dados pessoais).
 
+## Adicionando um ajuste de otimização
+
+Acrescente um dict em `AJUSTES` (`driverprecision_otimiza.py`):
+
+```python
+{"id": "meu_ajuste", "cat": "Placa de vídeo", "nome": "Nome curto", "risco": "baixo|médio|alto",
+ "reboot": True,                      # precisa reiniciar?
+ "reg": [("HKLM", r"SYSTEM\...", "Valor", DW, 1)],   # DW = DWORD, SZ = texto
+ "desc": "O que faz e o que o usuário ganha/perde, em português simples."}
+```
+
+O backup do valor original, o estado (Ativo/Padrão/Parcial) e o desfazer são automáticos. Para ajustes que dependem de comando (powercfg, bcdedit) ou de chaves descobertas na hora (por GPU, por placa de rede), use `"tipo"` e trate em `regs_do_ajuste`/`aplicar`/`desfazer`. Explique de onde vem o ganho no PR; ajuste que reduz segurança leva `"seguranca": True`.
+
+## Adicionando um componente de jogos
+
+Acrescente um dict em `COMPONENTES` (`driverprecision_jogos.py`) com `check` (função que devolve `("OK"|"FALTA"|"DESATUALIZADO", detalhe)`), `url` **oficial**, `args` silenciosos e `signer` (texto que deve aparecer no assinante da assinatura digital).
+
 ## Pull requests
 
 - Um assunto por PR, com testes passando (`python -m unittest discover -s tests`).

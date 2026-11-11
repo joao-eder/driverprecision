@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Compilar
-        run: python -m py_compile driverprecision.py driverprecision_gui.py
+        run: python -m py_compile driverprecision.py driverprecision_gui.py driverprecision_abas.py driverprecision_jogos.py driverprecision_otimiza.py
       - name: Testes
         run: python -X utf8 -m unittest discover -s tests -v
       - name: CLI responde
