@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/joao-eder/driverprecision)](https://github.com/joao-eder/driverprecision/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Identifica o hardware do PC e localiza o driver **correto** para cada dispositivo: o publicado para aquele modelo e Hardware ID exato. Nada de pacote genérico, nada de "driver booster".
+Identifica o hardware do PC e instala o driver **correto** para cada dispositivo: o publicado para aquele modelo e Hardware ID exato. Nada de pacote genérico, nada de "driver booster". Também deixa o PC **pronto para jogar** (Visual C++, DirectX, .NET...) e traz uma tela de **otimização avançada** com desfazer.
 
 *English summary [below](#english).*
 
@@ -35,6 +35,43 @@ Get-FileHash .\DriverPrecision.exe -Algorithm SHA256
 ![Janela do DriverPrecision](docs/janela.png)
 
 Só entra na instalação automática o que é seguro: driver ligado ao Hardware ID ou ao modelo exato e com versão comprovadamente mais nova. Itens duvidosos (`VERIFICAR`), BIOS e firmware ficam de fora e aparecem no relatório (botão **Ver relatório completo**).
+
+## Aba Jogos: tudo o que os jogos precisam para abrir
+
+Independente da potência do PC, jogos dependem de bibliotecas que o Windows não traz. Sem elas aparecem erros como *"MSVCP140.dll não encontrado"*, *"d3dx9_43.dll ausente"*, controle que não responde ou jogo que fecha sem aviso.
+
+![Aba Jogos](docs/jogos.png)
+
+| Componente | Por que importa |
+|---|---|
+| Visual C++ 2005, 2008, 2010, 2012, 2013, 2015-2022 (32 e 64 bits) | Cada jogo usa a versão com que foi compilado; jogo 32 bits precisa da versão 32 bits mesmo no Windows 64. A 2015-2022 abaixo de **14.40** faz jogos novos fecharem ao abrir. |
+| DirectX 9/10/11 legado (junho 2010) | O Windows 10/11 **não** traz d3dx9_43, XInput 1.3 e XAudio 2.7. |
+| .NET Framework 3.5 e 4.8, .NET Desktop Runtime 8 e 10 | Launchers, ferramentas de mod e jogos indie. |
+| XNA 4.0, OpenAL | Indies e clássicos (Terraria, Fez, emuladores...). |
+| WebView2 | Launchers modernos ficam com tela branca sem ele. |
+| DirectPlay (opcional), Vulkan (checagem) | Multiplayer de jogos antigos; Vulkan vem com o driver de vídeo. |
+
+Tudo é baixado dos links oficiais (Microsoft; OpenAL da Creative) e só executa com assinatura digital válida do fabricante.
+
+## Aba Otimização avançada
+
+![Aba Otimização](docs/otimizacao.png)
+
+Ajustes profundos que fazem diferença em jogo (não é "limpar arquivos temporários"). Cada um mostra o risco, o estado atual no seu PC e o que faz em português simples.
+
+| Categoria | Ajustes |
+|---|---|
+| Energia e CPU | Plano Desempenho Máximo · estacionamento de núcleos · Power Throttling · prioridade do primeiro plano (`Win32PrioritySeparation`) · timer sem tick dinâmico (BCD) |
+| Placa de vídeo | HAGS · modo MSI na GPU · otimizações de tela cheia · Game DVR · Modo de Jogo |
+| Agendador multimídia | `SystemResponsiveness` 0 e prioridade de GPU/CPU para a tarefa *Games* no MMCSS |
+| Rede | `NetworkThrottlingIndex` · algoritmo de Nagle (TcpAckFrequency/TCPNoDelay) |
+| Mouse e teclado | aceleração do mouse · suspensão seletiva de USB |
+| Windows | apps em segundo plano · efeitos visuais |
+| Segurança x desempenho | Integridade de Memória (VBS/HVCI) — ganha FPS, mas reduz proteção; alguns anti-cheats exigem ligado |
+
+**Segurança:** antes de aplicar, o valor original de cada chave vai para `%LOCALAPPDATA%\DriverPrecision\otimizacao_backup.json` e é criado um ponto de restauração. **Desfazer** devolve exatamente o que estava antes (inclusive apaga o que não existia). O ajuste de timer é bloqueado se o BitLocker estiver ativo, para não pedir a chave de recuperação no próximo boot.
+
+Quer propor um ajuste? Ele é só um item de dados em [`driverprecision_otimiza.py`](driverprecision_otimiza.py) — veja o [CONTRIBUTING](CONTRIBUTING.md).
 
 ## Uso avançado (linha de comando)
 
