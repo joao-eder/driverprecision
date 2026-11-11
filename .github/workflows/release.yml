@@ -1,0 +1,72 @@
+name: Release
+
+# Publica uma release ao enviar uma tag vX.Y.Z:
+#   git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Testes
+        run: python -X utf8 -m unittest discover -s tests -v
+
+      - name: Tag confere com VERSION do código
+        shell: pwsh
+        run: |
+          $v = (python -X utf8 driverprecision.py --version).Split(' ')[-1]
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} difere de VERSION $v" }
+
+      - name: Gerar DriverPrecision.exe
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller==6.11.1
+          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui driverprecision.py
+
+      - name: Montar pacotes
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          New-Item -ItemType Directory -Force out, "src\DriverPrecision-$tag" | Out-Null
+          Copy-Item dist\DriverPrecision.exe out\
+          Copy-Item driverprecision.py, driverprecision_gui.py, executar.bat, README.md, LICENSE, CHANGELOG.md "src\DriverPrecision-$tag\"
+          Compress-Archive -Path "src\DriverPrecision-$tag" -DestinationPath "out\DriverPrecision-$tag.zip"
+          Get-ChildItem out -File | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Set-Content -Encoding ascii out\SHA256SUMS.txt
+          Get-Content out\SHA256SUMS.txt
+
+      - name: Notas da versão (do CHANGELOG)
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          $txt = Get-Content CHANGELOG.md -Raw
+          $m = [regex]::Match($txt, "(?ms)^## \[$([regex]::Escape($v))\][^\n]*\n(.*?)(?=^## \[|^\[[^\]]+\]:|\z)")
+          $notas = if ($m.Success) { $m.Groups[1].Value.Trim() } else { "Versão $v" }
+          @"
+          ## Download
+
+          - **DriverPrecision.exe** — para qualquer pessoa: dois cliques, aceite o aviso do Windows e clique em *Verificar agora*. Não precisa de Python.
+          - **DriverPrecision-${{ github.ref_name }}.zip** — código-fonte (Python 3.10+).
+          - **SHA256SUMS.txt** — confira com ``Get-FileHash .\DriverPrecision.exe``.
+
+          > O .exe não tem assinatura de código: o SmartScreen pode avisar "editor desconhecido". Clique em *Mais informações → Executar assim mesmo*. Ele é compilado por este workflow a partir do código desta tag.
+
+          $notas
+          "@ | Set-Content -Encoding utf8 notas.md
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" out/* --title "DriverPrecision ${{ github.ref_name }}" --notes-file notas.md

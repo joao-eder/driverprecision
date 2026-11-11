@@ -1,0 +1,45 @@
+name: Problema / driver errado
+description: O programa falhou, recomendou o driver errado ou não achou um driver que existe.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado! **Não cole o `ultimo_scan.json` nem o relatório inteiro**: eles têm o número de série do seu PC.
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do DriverPrecision
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: maquina
+    attributes:
+      label: Fabricante e modelo do PC
+      placeholder: "Lenovo ThinkPad T490 (20N3) / Dell Latitude 5420 / PC montado com placa ASUS B550"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: "Windows 11 Pro 24H2"
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que aconteceu
+      description: Qual dispositivo, o que o programa mostrou e o que você esperava.
+    validations:
+      required: true
+  - type: textarea
+    id: ids
+    attributes:
+      label: Hardware IDs do dispositivo
+      description: Gerenciador de Dispositivos → Propriedades → Detalhes → IDs de hardware.
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Detalhes (botão "Mostrar detalhes")
+      render: text

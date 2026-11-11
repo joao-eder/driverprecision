@@ -1,0 +1,20 @@
+name: Suporte a novo fabricante
+description: Pedir (ou propor) catálogo oficial de outra marca (ASUS, Acer, MSI, Samsung...).
+labels: [fabricante]
+body:
+  - type: input
+    id: marca
+    attributes:
+      label: Fabricante / linha
+    validations:
+      required: true
+  - type: textarea
+    id: catalogo
+    attributes:
+      label: Catálogo público conhecido
+      description: URL de catálogo XML/JSON/CAB do fabricante, ou ferramenta oficial que o usa.
+  - type: textarea
+    id: identificacao
+    attributes:
+      label: Como identificar o modelo
+      description: Ex.: valor de SystemSKUNumber, BaseBoard Product, Model.

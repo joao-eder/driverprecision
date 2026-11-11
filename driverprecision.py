@@ -71,8 +71,21 @@ PRIORIDADE = {"OEM": 0, "WU": 1, "CAT": 2}
 # --------------------------------------------------------------------------- utilidades
 
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # sem janelas piscando na interface gráfica
+_LOG_FN = None
+
+
+def set_logger(fn) -> None:
+    """A interface gráfica redireciona o log para a janela."""
+    global _LOG_FN
+    _LOG_FN = fn
+
+
 def log(msg: str) -> None:
-    print(msg, flush=True)
+    if _LOG_FN:
+        _LOG_FN(msg)
+    elif sys.stdout:
+        print(msg, flush=True)
 
 
 def vtuple(v: str | None) -> tuple:
@@ -141,7 +154,7 @@ def cached(url: str, name: str, ttl_h: float = 24, timeout: int = 90) -> bytes:
 def expand_cab(cab: Path, dest: Path) -> list[Path]:
     dest.mkdir(parents=True, exist_ok=True)
     subprocess.run([str(SYS32 / "expand.exe"), "-F:*", str(cab), str(dest)],
-                   capture_output=True, check=False)
+                   capture_output=True, check=False, creationflags=NO_WINDOW)
     return [p for p in dest.rglob("*") if p.is_file()]
 
 
@@ -168,7 +181,8 @@ def powershell(script: str, timeout: int = 600) -> str:
     pre = "$ProgressPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
     enc = base64.b64encode((pre + script).encode("utf-16-le")).decode()
     r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
-                        "Bypass", "-EncodedCommand", enc], capture_output=True, timeout=timeout)
+                        "Bypass", "-EncodedCommand", enc], capture_output=True, timeout=timeout,
+                       creationflags=NO_WINDOW)
     out = r.stdout.decode("utf-8", "replace").strip()
     if r.returncode != 0 and not out:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-800:])
@@ -873,8 +887,10 @@ def scan(args) -> dict:
     estado = {"gerado": dt.datetime.now().isoformat(timespec="seconds"), "versao": VERSION, "system": sysinfo,
               "fontes": fontes, "devices": devs, "sistema": sistema, "links": links_oem(sysinfo),
               "duracao_s": round(time.time() - t0, 1)}
-    STATE.write_text(json.dumps(estado, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    OUT.mkdir(parents=True, exist_ok=True)
     rel = OUT / f"relatorio_{(sysinfo.get('computer') or 'pc')}_{dt.datetime.now():%Y%m%d_%H%M}.html"
+    estado["relatorio"] = str(rel)
+    STATE.write_text(json.dumps(estado, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     rel.write_text(relatorio_html(estado), encoding="utf-8")
     resumo_console(estado)
     log(f"\nRelatório: {rel}\nEstado:    {STATE}")
@@ -1108,61 +1124,118 @@ $i=$s.CreateUpdateInstaller(); $i.Updates=$col; $res=$i.Install()
 """
 
 
-def instalar_um(c: dict) -> None:
+RC_OK = {0, 3010, 1641}
+RC_REBOOT = {3010, 1641}
+
+
+def _run(cmd, cwd: Path, timeout: int = 3600) -> int:
+    r = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True, text=True,
+                       timeout=timeout, creationflags=NO_WINDOW)
+    saida = (r.stdout or "") + (r.stderr or "")
+    if saida.strip():
+        log("  " + saida.strip()[-800:])
+    return r.returncode
+
+
+def instalar_um(c: dict) -> tuple[bool, bool, str]:
+    """Instala um candidato. Devolve (sucesso, precisa_reiniciar, mensagem curta)."""
     if c.get("kind") == "firmware":
-        log("  BIOS/firmware não é instalado automaticamente. Baixe com 'baixar', leia as notas e execute manualmente.")
-        return
+        return False, False, "BIOS/firmware não é instalado automaticamente"
     if c["source"] == "WU":
-        log("  " + powershell(PS_WU_INSTALL.replace("%IDS%", "'" + c["cid"].split(":", 1)[1] + "'"), 3600))
-        return
+        out = powershell(PS_WU_INSTALL.replace("%IDS%", "'" + c["cid"].split(":", 1)[1] + "'"), 3600)
+        m = re.search(r"resultado=(\d+) reboot=(\w+)", out or "")
+        ok = bool(m) and m.group(1) in ("2", "3")  # 2=sucesso, 3=sucesso com erros
+        return ok, bool(m) and m.group(2).lower() == "true", "Windows Update: " + (out or "sem resposta")
     arq = baixar_um(c)
     assert arq
     pasta = arq.parent
     if c["source"] == "CAT":
         x = pasta / "extraido"
         expand_cab(arq, x)
-        r = subprocess.run(["pnputil.exe", "/add-driver", str(x / "*.inf"), "/subdirs", "/install"],
-                           capture_output=True, text=True)
-        log("  " + (r.stdout or r.stderr)[-1500:])
-        return
+        if not list(x.rglob("*.inf")):
+            return False, False, "pacote do Catalog sem .inf"
+        rc = _run(["pnputil.exe", "/add-driver", str(x / "*.inf"), "/subdirs", "/install"], pasta)
+        return rc in RC_OK, rc in RC_REBOOT, f"pnputil código {rc}"
     if c["cid"].startswith("LEN:"):
         if c.get("extract"):
-            subprocess.run(c["extract"].replace("%PACKAGEPATH%", str(pasta)), cwd=pasta, shell=True)
+            _run(c["extract"].replace("%PACKAGEPATH%", str(pasta)), pasta)
         cmd = (c.get("install") or "").replace("%PACKAGEPATH%", str(pasta))
-        oks = {int(x) for x in re.findall(r"-?\d+", c.get("install_rc") or "0")}
+        oks = {int(x) for x in re.findall(r"-?\d+", c.get("install_rc") or "0")} | RC_OK
     elif c["cid"].startswith("DELL:"):
-        cmd, oks = f'"{arq}" /s /l="{pasta / "dup.log"}"', {0, 2}
+        cmd, oks = f'"{arq}" /s /l="{pasta / "dup.log"}"', {0, 2} | RC_OK
     else:  # HP softpaq
-        cmd, oks = f'"{arq}" /s', {0, 3010}
+        cmd, oks = f'"{arq}" /s', RC_OK
+    if not cmd:
+        return False, False, "descritor sem comando de instalação"
     log(f"  executando: {cmd}")
-    r = subprocess.run(cmd, cwd=pasta, shell=True)
-    log(f"  código de saída {r.returncode} ({'sucesso' if r.returncode in oks or r.returncode == 3010 else 'VERIFIQUE'})")
+    rc = _run(cmd, pasta)
+    return rc in oks, rc in RC_REBOOT or (c["cid"].startswith("DELL:") and rc == 2), f"código de saída {rc}"
+
+
+def ponto_restauracao() -> tuple[bool, str]:
+    try:
+        out = powershell("$ErrorActionPreference='Stop';Checkpoint-Computer -Description 'DriverPrecision' "
+                         "-RestorePointType MODIFY_SETTINGS; 'ok'", 600)
+        return "ok" in (out or ""), out or ""
+    except Exception as ex:
+        return False, str(ex)[:300]
+
+
+def recomendados(e: dict) -> list[tuple[dict, dict]]:
+    """O que o modo automático instala: só driver com correspondência confiável e versão comprovadamente melhor."""
+    out = []
+    for d in e["devices"]:
+        b = d.get("melhor")
+        if not b or b.get("kind") == "firmware":
+            continue
+        if d["status"] in ("INSTALAR", "SUBSTITUIR", "ATUALIZAR"):
+            out.append((d, b))
+    # um pacote pode atender vários dispositivos: instala uma vez só
+    vistos, unicos = set(), []
+    for d, b in out:
+        if b["cid"] not in vistos:
+            vistos.add(b["cid"])
+            unicos.append((d, b))
+    return unicos
+
+
+def instalar_lista(cs: list[dict], progresso=None) -> dict:
+    """Instala em sequência, sem perguntas (quem chama já confirmou). Devolve resumo."""
+    res = {"ok": [], "falha": [], "reboot": False}
+    for n, c in enumerate(cs, 1):
+        if progresso:
+            progresso(n, len(cs), c)
+        log(f"\n[{n}/{len(cs)}] {c['title']}  ({c['cid']})")
+        try:
+            ok, rb, msg = instalar_um(c)
+        except Exception as ex:
+            ok, rb, msg = False, False, str(ex)
+        log(("  OK: " if ok else "  FALHOU: ") + msg)
+        res["ok" if ok else "falha"].append((c, msg))
+        res["reboot"] = res["reboot"] or rb
+    return res
 
 
 def cmd_instalar(args) -> None:
     if not is_admin():
         sys.exit("Instalar exige terminal como Administrador.")
     e = carregar_estado()
-    cs = achar_cands(e, args.ids)
+    cs = achar_cands(e, args.ids) if args.ids else [b for _, b in recomendados(e)]
+    if not cs:
+        sys.exit("Nada recomendado para instalar.")
     log("Será instalado:")
     for c in cs:
         log(f"  - {c['cid']}  {c['title']}  v{c.get('version') or c.get('pkg_version')}  [{c['source_name']}]")
-    if input("\nDigite SIM para continuar: ").strip().upper() != "SIM":
+    if not args.sim and input("\nDigite SIM para continuar: ").strip().upper() != "SIM":
         sys.exit("Cancelado.")
     log("Criando ponto de restauração...")
-    try:
-        log("  " + (powershell("Checkpoint-Computer -Description 'DriverPrecision' -RestorePointType MODIFY_SETTINGS; 'ok'", 600) or "ok"))
-    except Exception as ex:
-        log(f"  não foi possível ({ex}).")
-        if input("Continuar sem ponto de restauração? (SIM/não): ").strip().upper() != "SIM":
-            sys.exit("Cancelado.")
-    for c in cs:
-        log(f"\n{c['cid']} - {c['title']}")
-        try:
-            instalar_um(c)
-        except Exception as ex:
-            log(f"  FALHOU: {ex}")
-    log("\nConcluído. Rode 'scan' de novo para conferir; reinicie se algum instalador pediu.")
+    ok, msg = ponto_restauracao()
+    log("  " + ("criado" if ok else f"não foi possível: {msg}"))
+    if not ok and not args.sim and input("Continuar sem ponto de restauração? (SIM/não): ").strip().upper() != "SIM":
+        sys.exit("Cancelado.")
+    r = instalar_lista(cs)
+    log(f"\nConcluído: {len(r['ok'])} instalados, {len(r['falha'])} com falha."
+        + (" Reinicie o computador." if r["reboot"] else ""))
 
 
 # --------------------------------------------------------------------------- main
@@ -1172,6 +1245,7 @@ def main() -> None:
     if os.name != "nt":
         sys.exit("Somente Windows.")
     ap = argparse.ArgumentParser(prog="driverprecision", description="Identifica o hardware e localiza o driver correto.")
+    ap.add_argument("--version", action="version", version=f"DriverPrecision {VERSION}")
     sub = ap.add_subparsers(dest="cmd")
     s = sub.add_parser("scan", help="inventário + busca nas fontes + relatório (somente leitura)")
     s.add_argument("--sem-oem", action="store_true")
@@ -1180,13 +1254,23 @@ def main() -> None:
     s.add_argument("--nao-abrir", action="store_true", help="não abrir o relatório ao final")
     b = sub.add_parser("baixar", help="baixa e valida (hash + assinatura) sem instalar")
     b.add_argument("ids", nargs="+")
-    i = sub.add_parser("instalar", help="instala (admin, confirmação, ponto de restauração)")
-    i.add_argument("ids", nargs="+")
-    a = ap.parse_args()
-    if a.cmd in (None, "scan"):
-        if a.cmd is None:
-            a = s.parse_args([])
+    i = sub.add_parser("instalar", help="instala os IDs dados, ou todos os recomendados se nenhum for dado (admin)")
+    i.add_argument("ids", nargs="*")
+    i.add_argument("--sim", action="store_true", help="não perguntar (para uso em script)")
+    sub.add_parser("auto", help="verifica, baixa e instala os recomendados sem perguntas (admin)")
+    argv = [x for x in sys.argv[1:] if x != "--sem-elevar"]  # marcador interno da reabertura via UAC
+    a = ap.parse_args(argv)
+    if a.cmd is None:
+        # sem argumentos (duplo clique): interface gráfica para usuário comum
+        from driverprecision_gui import run_gui
+        run_gui()
+    elif a.cmd == "scan":
         scan(a)
+    elif a.cmd == "auto":
+        if not is_admin():
+            sys.exit("O modo auto exige terminal como Administrador.")
+        scan(s.parse_args(["--nao-abrir"]))
+        cmd_instalar(argparse.Namespace(ids=[], sim=True))
     elif a.cmd == "baixar":
         cmd_baixar(a)
     else:
