@@ -61,6 +61,39 @@ class Otimizacao(unittest.TestCase):
         ot.REG.set("HKCU", ot.GCS, "GameDVR_Enabled", "DWORD", 0)
         self.assertEqual(ot.estado(ot.POR_ID["game_dvr"]), "PARCIAL")
 
+    def test_ids_unicos(self):
+        ids = [a["id"] for a in ot.AJUSTES]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_hibernacao_desfazer_so_religa_se_estava_ligada(self):
+        chamadas = []
+        cmd_orig = ot._cmd
+        ot._cmd = lambda args: (chamadas.append(args[1:]) or (0, ""))
+        try:
+            ot.REG.set("HKLM", ot.PWR, "HibernateEnabled", "DWORD", 1)
+            ot.aplicar("hibernacao")
+            ot.REG.set("HKLM", ot.PWR, "HibernateEnabled", "DWORD", 0)  # o que o powercfg faria
+            self.assertEqual(ot.estado(ot.POR_ID["hibernacao"]), "ATIVO")
+            ot.desfazer("hibernacao")
+            self.assertEqual(chamadas, [["/hibernate", "off"], ["/hibernate", "on"]])
+
+            chamadas.clear()  # já estava desligada: desfazer não liga
+            ot.aplicar("hibernacao")
+            ot.desfazer("hibernacao")
+            self.assertEqual(chamadas, [["/hibernate", "off"]])
+        finally:
+            ot._cmd = cmd_orig
+
+    def test_texto_sz_volta_ao_original(self):
+        k = r"Control Panel\Keyboard"
+        ot.REG.set("HKCU", k, "KeyboardDelay", "SZ", "1")
+        ot.REG.set("HKCU", k, "KeyboardSpeed", "SZ", "31")
+        antes = dict(ot.REG.d)
+        ot.aplicar("teclado")
+        self.assertEqual(ot.REG.get("HKCU", k, "KeyboardDelay")[2], "0")
+        ot.desfazer("teclado")
+        self.assertEqual(ot.REG.d, antes)
+
     def test_todos_os_ajustes_tem_campos(self):
         for a in ot.AJUSTES:
             self.assertIn(a["risco"], ("baixo", "médio", "alto"), a["id"])

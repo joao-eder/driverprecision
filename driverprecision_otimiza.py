@@ -174,8 +174,15 @@ SUB_PROC = "54533251-82be-4824-96c1-47b60b740d00"
 CPMINCORES = "0cc5b647-c1df-4637-891a-dec35c318583"
 SUB_USB = "2a737441-1930-4402-8d77-b2bebba308a3"
 USB_SUSPEND = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226"
+SUB_WIFI = "19cbb8fa-5279-450e-9fac-8a3d5fedd0c1"
+WIFI_POWER = "12bbebe6-58d6-4636-95bb-3217ef867c1a"
+SUB_PCIE = "501a4d13-42af-4429-9fd1-a8218c268e20"
+PCIE_ASPM = "ee12f906-d277-404b-b6da-e5fa1a576df5"
 MM = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
 GCS = r"System\GameConfigStore"
+CDM = r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+FS = r"SYSTEM\CurrentControlSet\Control\FileSystem"
+PWR = r"SYSTEM\CurrentControlSet\Control\Power"
 
 AJUSTES: list[dict] = [
     # ---- Energia e CPU
@@ -248,6 +255,58 @@ AJUSTES: list[dict] = [
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", DW, 0),
              ("HKCU", r"Control Panel\Desktop", "MenuShowDelay", SZ, "0")],
      "desc": "Tira transparências e animações do Windows. Ajuda em PC fraco."},
+    {"id": "fast_startup", "cat": "Windows", "nome": "Desligar Inicialização rápida", "risco": "baixo", "reboot": True,
+     "reg": [("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Power", "HiberbootEnabled", DW, 0)],
+     "desc": "Com ela ligada, 'Desligar' na verdade hiberna o núcleo do Windows e os drivers nunca reiniciam do zero. "
+             "Desligar resolve driver travado em estado ruim. O boot pode ficar alguns segundos mais lento."},
+    {"id": "telemetria", "cat": "Windows", "nome": "Desligar telemetria do Windows", "risco": "baixo", "reboot": True,
+     "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", DW, 0),
+             ("HKLM", r"SYSTEM\CurrentControlSet\Services\DiagTrack", "Start", DW, 4)],
+     "desc": "Para o serviço que envia dados de uso para a Microsoft o tempo todo. Menos processo, disco e rede em segundo plano. "
+             "No Windows Home/Pro fica no nível mínimo permitido."},
+    {"id": "anuncios", "cat": "Windows", "nome": "Desligar anúncios, dicas e apps sugeridos", "risco": "baixo",
+     "reg": [("HKCU", CDM, "SilentInstalledAppsEnabled", DW, 0), ("HKCU", CDM, "SystemPaneSuggestionsEnabled", DW, 0),
+             ("HKCU", CDM, "SoftLandingEnabled", DW, 0), ("HKCU", CDM, "SubscribedContent-338388Enabled", DW, 0),
+             ("HKCU", CDM, "SubscribedContent-338389Enabled", DW, 0), ("HKCU", CDM, "SubscribedContent-310093Enabled", DW, 0),
+             ("HKCU", CDM, "SubscribedContent-353694Enabled", DW, 0), ("HKCU", CDM, "SubscribedContent-353696Enabled", DW, 0)],
+     "desc": "Impede o Windows de instalar apps 'sugeridos' sozinho e tira dicas e propagandas do Menu Iniciar e das Configurações."},
+    {"id": "bing", "cat": "Windows", "nome": "Desligar busca na web (Bing) no Menu Iniciar", "risco": "baixo", "reboot": True,
+     "reg": [("HKCU", r"Software\Policies\Microsoft\Windows\Explorer", "DisableSearchBoxSuggestions", DW, 1),
+             ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Search", "BingSearchEnabled", DW, 0)],
+     "desc": "A pesquisa do Menu Iniciar procura só no PC, sem consultar a internet a cada letra. Fica mais rápida."},
+    {"id": "startup_delay", "cat": "Windows", "nome": "Tirar o atraso dos programas de inicialização", "risco": "baixo",
+     "reg": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize", "StartupDelayInMSec", DW, 0),
+             ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize", "WaitForIdleState", DW, 0)],
+     "desc": "O Windows espera alguns segundos antes de abrir os programas da inicialização. Isso tira a espera."},
+    {"id": "hibernacao", "cat": "Windows", "nome": "Desligar hibernação", "risco": "baixo", "tipo": "hiber",
+     "desc": "Apaga o arquivo hiberfil.sys e libera vários GB no disco C:. Some a opção 'Hibernar' e a Inicialização rápida "
+             "deixa de funcionar. Suspender continua normal."},
+    # ---- Disco
+    {"id": "trim", "cat": "Disco", "nome": "Garantir TRIM do SSD ligado", "risco": "baixo",
+     "reg": [("HKLM", FS, "DisableDeleteNotification", DW, 0)],
+     "desc": "O TRIM avisa o SSD quais blocos foram apagados, mantendo a velocidade de gravação com o tempo. "
+             "Normalmente já está ligado; aqui só garante."},
+    {"id": "last_access", "cat": "Disco", "nome": "Desligar registro de 'último acesso' dos arquivos", "risco": "baixo",
+     "reboot": True, "reg": [("HKLM", FS, "NtfsDisableLastAccessUpdate", DW, 0x80000001)],
+     "desc": "O Windows grava a data em que cada arquivo foi aberto. Desligar evita milhares de gravações pequenas no disco "
+             "(ao carregar jogos, por exemplo)."},
+    # ---- Rede (energia)
+    {"id": "delivery_p2p", "cat": "Rede", "nome": "Não compartilhar atualizações com outros PCs", "risco": "baixo",
+     "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", DW, 0)],
+     "desc": "Por padrão o Windows usa sua internet para enviar atualizações a outros PCs. Isso desliga o envio "
+             "(as atualizações continuam chegando normalmente)."},
+    {"id": "wifi_power", "cat": "Rede", "nome": "Desligar economia de energia do Wi-Fi", "risco": "médio",
+     "tipo": "powercfg", "pc": (SUB_WIFI, WIFI_POWER, 0, 0),
+     "desc": "A placa Wi-Fi para de 'cochilar' entre pacotes. Ping mais estável em notebook; gasta um pouco mais de bateria."},
+    {"id": "pcie_aspm", "cat": "Placa de vídeo", "nome": "Desligar economia de energia do PCIe (ASPM)", "risco": "médio",
+     "tipo": "powercfg", "pc": (SUB_PCIE, PCIE_ASPM, 0, None),
+     "desc": "Placa de vídeo e SSD NVMe não entram em economia de energia entre um quadro e outro. Menos travadinhas. "
+             "Só vale na tomada; na bateria a economia continua."},
+    # ---- Mouse e teclado
+    {"id": "teclado", "cat": "Mouse e teclado", "nome": "Repetição do teclado mais rápida", "risco": "baixo", "reboot": True,
+     "reg": [("HKCU", r"Control Panel\Keyboard", "KeyboardDelay", SZ, "0"),
+             ("HKCU", r"Control Panel\Keyboard", "KeyboardSpeed", SZ, "31")],
+     "desc": "Tecla segurada começa a repetir mais cedo e mais rápido. Vale ao sair e entrar na conta."},
     {"id": "vbs", "cat": "Segurança x desempenho", "nome": "Desligar Integridade de Memória (VBS/HVCI)", "risco": "alto",
      "reboot": True, "seguranca": True,
      "reg": [("HKLM", r"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity", "Enabled", DW, 0),
@@ -287,6 +346,8 @@ def estado(a: dict) -> str:
     if t == "bcd":
         v = _bcd_get("disabledynamictick")
         return "ATIVO" if v and v.lower() in ("yes", "sim") else "PADRÃO"
+    if t == "hiber":
+        return "ATIVO" if REG.get("HKLM", PWR, "HibernateEnabled")[2] == 0 else "PADRÃO"
     regs = regs_do_ajuste(a)
     if not regs:
         return "N/A"
@@ -320,6 +381,13 @@ def aplicar(aid: str) -> str:
         _cmd(["bcdedit", "/set", "disabledynamictick", "yes"])
         _cmd(["bcdedit", "/deletevalue", "useplatformclock"])
         msg = "configuração de boot alterada"
+    elif t == "hiber":
+        if orig is None:
+            orig = {"hiber": REG.get("HKLM", PWR, "HibernateEnabled")[2] != 0}
+        rc, out = _cmd(["powercfg", "/hibernate", "off"])
+        if rc != 0:
+            raise RuntimeError("powercfg recusou desligar a hibernação: " + out.strip()[:200])
+        msg = "hibernação desligada (hiberfil.sys removido)"
     else:
         regs = regs_do_ajuste(a)
         if not regs:
@@ -348,6 +416,8 @@ def desfazer(aid: str) -> str:
     if "bcd" in orig:
         for nome, valor in orig["bcd"].items():
             _bcd_restaura(nome, valor)
+    if orig.get("hiber"):  # só religa se estava ligada antes
+        _cmd(["powercfg", "/hibernate", "on"])
     for h, p, n, existe, tipo, valor in orig.get("reg", []):
         if existe and tipo in TIPOS:
             REG.set(h, p, n, tipo, valor)

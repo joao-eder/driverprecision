@@ -39,7 +39,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DriverPrecision/" + VERSION
 BASE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "DriverPrecision"
 CACHE = BASE / "cache"
