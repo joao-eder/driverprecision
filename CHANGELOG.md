@@ -2,6 +2,17 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.2.0] - 2026-11-12
+
+### Adicionado
+- 12 ajustes novos na aba **Otimização avançada** (agora são 30), todos com backup e desfazer:
+  - Windows: desligar Inicialização rápida, telemetria (serviço DiagTrack), anúncios/dicas/apps sugeridos, busca na web (Bing) no Menu Iniciar, atraso dos programas de inicialização, hibernação.
+  - Disco (categoria nova): garantir TRIM do SSD, desligar registro de último acesso (NTFS).
+  - Rede: não compartilhar atualizações com outros PCs (Otimização de Entrega P2P), desligar economia de energia do Wi-Fi.
+  - Placa de vídeo: desligar economia de energia do PCIe (ASPM) na tomada.
+  - Mouse e teclado: repetição do teclado mais rápida.
+- Desfazer da hibernação só religa se ela estava ligada antes.
+
 ## [1.1.0] - 2026-11-11
 
 ### Adicionado
@@ -26,5 +37,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.2.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.2.0
 [1.1.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.1.0
 [1.0.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.0.0
