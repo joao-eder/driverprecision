@@ -2,6 +2,23 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.3.1] - 2026-11-16
+
+Versão de correções, depois de testar tudo num Windows de verdade (Windows Server 2022 e 2025 descartáveis do GitHub, como administrador): aplicar e desfazer os 30 ajustes, baixar e instalar os componentes de jogos, consultar Lenovo/Dell/HP, verificar drivers e abrir a janela e o .exe.
+
+### Corrigido
+- **Desfazer dos ajustes de energia** (estacionamento de núcleos, USB, Wi-Fi, PCIe) falhava com "Acesso negado": o Windows protege as chaves dos planos de energia. Agora a leitura e o desfazer passam pelo `powercfg`.
+- **Conferência de assinatura digital falhava** quando o programa era aberto a partir do PowerShell 7, bloqueando a instalação de componentes e drivers.
+- Ajuste de energia que não existe no PC (ex.: Wi-Fi em desktop) aparecia como aplicado; agora aparece "Não se aplica".
+- Drivers Lenovo: instalação falhava se a pasta do usuário tivesse espaço no nome.
+- Pacotes Lenovo que reiniciam o PC sozinhos ficam fora da instalação automática.
+- Texto com acento na saída de um instalador podia interromper a instalação.
+- Erros do Windows no plano de energia e no `bcdedit` deixam de ser relatados como sucesso.
+- Janela cabia mal em telas pequenas (1366x768 e menores): agora abre no tamanho da tela, centralizada, com os botões sempre visíveis e os textos quebrando na largura certa.
+
+### Adicionado
+- Teste de integração automático em Windows real a cada alteração do código (`tests/integracao_windows.py`).
+
 ## [1.3.0] - 2026-11-16
 
 ### Alterado
@@ -44,6 +61,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.3.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.1
 [1.3.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.0
 [1.2.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.2.0
 [1.1.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.1.0

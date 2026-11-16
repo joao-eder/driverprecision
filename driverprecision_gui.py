@@ -47,8 +47,9 @@ class App:
         topo = ttk.Frame(parent, padding=(28, 24, 28, 4))
         topo.pack(fill="x")
         ttk.Label(topo, text="Drivers do seu computador", style="Titulo.TLabel").pack(anchor="w")
-        ttk.Label(topo, text="Encontra e instala o driver certo de cada peça, direto do fabricante. "
-                             "Nada de driver genérico.", style="Sub.TLabel", wraplength=820).pack(anchor="w")
+        sub = ttk.Label(topo, text="Encontra e instala o driver certo de cada peça, direto do fabricante. "
+                                   "Nada de driver genérico.", style="Sub.TLabel", wraplength=820, justify="left")
+        sub.pack(anchor="w")
 
         self.corpo = ttk.Frame(parent, padding=(28, 12))
         self.corpo.pack(fill="both", expand=True)
@@ -62,20 +63,22 @@ class App:
 
         self.lista_frame, self.tree = tema.lista(self.corpo, columns=("sel", "disp", "atual", "novo", "fonte"),
                                                  show="headings", selectmode="none")
-        for col, txt, w, anc in (("sel", "", 36, "center"), ("disp", "Peça do computador", 380, "w"),
-                                 ("atual", "Versão atual", 130, "w"), ("novo", "Nova versão", 130, "w"),
-                                 ("fonte", "Origem", 150, "w")):
+        for col, txt, w, anc in (("sel", "", 36, "center"), ("disp", "Peça do computador", 200, "w"),
+                                 ("atual", "Versão atual", 115, "w"), ("novo", "Nova versão", 115, "w"),
+                                 ("fonte", "Origem", 130, "w")):
             self.tree.heading(col, text=txt)
             self.tree.column(col, width=w, anchor=anc, stretch=col == "disp")
         self.tree.bind("<Button-1>", self._toggle)
         self.aviso = ttk.Label(self.corpo, text="", style="Sub.TLabel", wraplength=820, justify="left")
+        self.passo.configure(justify="left")
+        tema.quebra_automatica(parent, sub, self.msg, self.passo, self.aviso)
 
         self.det_frame = ttk.Frame(self.corpo)
         self.txt = tema.texto_log(self.det_frame, height=10)
         self.txt.pack(fill="both", expand=True)
 
         base = ttk.Frame(parent, padding=(28, 10, 28, 22))
-        base.pack(fill="x")
+        base.pack(side="bottom", fill="x", before=self.corpo)  # botões sempre visíveis, mesmo em tela baixa
         self.btn = ttk.Button(base, text="Verificar agora", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
         self.btn2 = ttk.Button(base, text="Ver relatório completo", command=self.abrir_relatorio)
@@ -296,7 +299,7 @@ def run_gui() -> None:
     tw, th = root.winfo_screenwidth(), root.winfo_screenheight()
     w, h = min(1180, tw - 60), min(740, th - 110)
     root.geometry(f"{w}x{h}+{max(0, (tw - w) // 2)}+{max(0, (th - h) // 2 - 30)}")
-    root.minsize(min(900, w), min(560, h))
+    root.minsize(min(960, w), min(600, h))
     tema.aplicar(root)
     jan = tema.Janela(root, dp.VERSION, dp.is_admin())
     pg_drv = jan.pagina("drivers", "Drivers", "Atualizar pelo fabricante")

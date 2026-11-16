@@ -24,26 +24,28 @@ class Aba:
         topo = ttk.Frame(parent, padding=(28, 24, 28, 4))
         topo.pack(fill="x")
         ttk.Label(topo, text=titulo, style="Titulo.TLabel").pack(anchor="w")
-        ttk.Label(topo, text=sub, style="Sub.TLabel", wraplength=820, justify="left").pack(anchor="w")
+        self.sub = ttk.Label(topo, text=sub, style="Sub.TLabel", wraplength=820, justify="left")
+        self.sub.pack(anchor="w")
         self.corpo = ttk.Frame(parent, padding=(28, 12))
         self.corpo.pack(fill="both", expand=True)
         self.msg = ttk.Label(self.corpo, text="", style="Msg.TLabel", wraplength=820, justify="left")
         self.msg.pack(anchor="w", pady=(0, 6))
+        tema.quebra_automatica(parent, self.sub, self.msg)
         self.barra = ttk.Progressbar(self.corpo, mode="indeterminate")
         self.base = ttk.Frame(parent, padding=(28, 10, 28, 22))
-        self.base.pack(fill="x")
+        self.base.pack(side="bottom", fill="x", before=self.corpo)  # botões sempre visíveis, mesmo em tela baixa
         self.det = tema.texto_log(parent, height=7)
-        self.btn_det = ttk.Button(self.base, text="Mostrar detalhes", command=self._toggle_det)
+        self.btn_det = ttk.Button(self.base, text="Detalhes", command=self._toggle_det)
         self.btn_det.pack(side="left")
         root.after(150, self._poll)
 
     def _toggle_det(self) -> None:
         if self.det.winfo_ismapped():
             self.det.pack_forget()
-            self.btn_det.config(text="Mostrar detalhes")
+            self.btn_det.config(text="Detalhes")
         else:
-            self.det.pack(fill="x", padx=28, pady=(0, 12), before=self.base)
-            self.btn_det.config(text="Ocultar detalhes")
+            self.det.pack(side="bottom", fill="x", padx=28, pady=(0, 12), after=self.base)
+            self.btn_det.config(text="Ocultar")
 
     def _log(self, m: str) -> None:
         self.det.configure(state="normal")
@@ -125,8 +127,8 @@ class AbaJogos(Aba):
         self.marcados: set[str] = set()
         fr, self.tree = tema.lista(self.corpo, columns=("sel", "nome", "sit", "det"), show="headings", selectmode="browse")
         fr.pack(fill="both", expand=True, pady=(4, 0))
-        for c, t, w, st in (("sel", "", 36, False), ("nome", "Componente", 300, True), ("sit", "Situação", 150, False),
-                            ("det", "Detalhe", 300, True)):
+        for c, t, w, st in (("sel", "", 36, False), ("nome", "Componente", 230, True), ("sit", "Situação", 130, False),
+                            ("det", "Detalhe", 190, True)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, stretch=st, anchor="center" if c == "sel" else "w")
         for st, cor in (("OK", tema.TEXTO), ("FALTA", VERMELHO), ("DESATUALIZADO", LARANJA), ("INFO", CINZA)):
@@ -134,7 +136,8 @@ class AbaJogos(Aba):
         self.tree.bind("<Button-1>", self._clique)
         self.tree.bind("<<TreeviewSelect>>", self._mostra_desc)
         self.desc = ttk.Label(self.corpo, text="", style="Sub.TLabel", wraplength=820, justify="left")
-        self.desc.pack(anchor="w", pady=(6, 0))
+        self.desc.pack(side="bottom", anchor="w", pady=(6, 0), before=fr)  # a explicação nunca some
+        tema.quebra_automatica(parent, self.desc)
         self.btn = ttk.Button(self.base, text="Verificar", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
         self.msg.config(text="Clique em Verificar. Leva poucos segundos.")
@@ -238,8 +241,8 @@ class AbaOtimizacao(Aba):
         fr, self.tree = tema.lista(self.corpo, columns=("sel", "risco", "estado"), show="tree headings", selectmode="browse")
         fr.pack(fill="both", expand=True, pady=(4, 0))
         self.tree.heading("#0", text="Ajuste")
-        self.tree.column("#0", width=430, stretch=True)
-        for c, t, w in (("sel", "", 40), ("risco", "Risco", 90), ("estado", "Estado atual", 180)):
+        self.tree.column("#0", width=290, minwidth=200, stretch=True)
+        for c, t, w in (("sel", "", 36), ("risco", "Risco", 70), ("estado", "Estado atual", 170)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, stretch=False, anchor="center" if c != "estado" else "w")
         for r, cor in COR_RISCO.items():
@@ -249,15 +252,16 @@ class AbaOtimizacao(Aba):
         self.tree.bind("<<TreeviewSelect>>", self._mostra_desc)
         self.desc = ttk.Label(self.corpo, text="Clique num ajuste para ver o que ele faz.", style="Sub.TLabel",
                               wraplength=820, justify="left")
-        self.desc.pack(anchor="w", pady=(6, 0))
+        self.desc.pack(side="bottom", anchor="w", pady=(6, 0), before=fr)  # a explicação nunca some
+        tema.quebra_automatica(parent, self.desc)
 
         self.btn = ttk.Button(self.base, text="Aplicar marcados", style="Grande.TButton", command=self.aplicar)
         self.btn.pack(side="right")
-        self.btn_desf = ttk.Button(self.base, text="Desfazer marcados", command=self.desfazer)
+        self.btn_desf = ttk.Button(self.base, text="Desfazer", command=self.desfazer)
         self.btn_desf.pack(side="right", padx=(0, 8))
         self.btn_tudo = ttk.Button(self.base, text="Desfazer tudo", command=self.desfazer_tudo)
         self.btn_tudo.pack(side="right", padx=(0, 8))
-        self.btn_rec = ttk.Button(self.base, text="Marcar recomendados", command=self.recomendados)
+        self.btn_rec = ttk.Button(self.base, text="Recomendados", command=self.recomendados)
         self.btn_rec.pack(side="left", padx=(8, 0))
         self.msg.config(text="Lendo configurações atuais...")
         self._botoes(False)
