@@ -77,12 +77,12 @@ def aplicar(root: tk.Tk) -> None:
     st.configure("Msg.TLabel", font=(FONTE, 13, "bold"), foreground=TEXTO)
 
     # botões
-    st.configure("TButton", background=CARTAO_2, foreground=TEXTO, borderwidth=0, padding=(14, 8),
+    st.configure("TButton", background=CARTAO_2, foreground=TEXTO, borderwidth=0, padding=(12, 8), width=-5,
                  font=(FONTE, 10), relief="flat", lightcolor=CARTAO_2, darkcolor=CARTAO_2, bordercolor=CARTAO_2)
     st.map("TButton", background=[("disabled", CARTAO), ("pressed", BORDA), ("active", BORDA)],
            foreground=[("disabled", APAGADO)],
            lightcolor=[("active", BORDA)], darkcolor=[("active", BORDA)], bordercolor=[("active", BORDA)])
-    st.configure("Grande.TButton", background=AZUL, foreground="#ffffff", font=(FONTE, 11, "bold"), padding=(22, 11),
+    st.configure("Grande.TButton", background=AZUL, foreground="#ffffff", font=(FONTE, 11, "bold"), padding=(18, 11),
                  lightcolor=AZUL, darkcolor=AZUL, bordercolor=AZUL)
     st.map("Grande.TButton", background=[("disabled", CARTAO_2), ("pressed", AZUL), ("active", AZUL_HOVER)],
            foreground=[("disabled", APAGADO)],
@@ -107,6 +107,14 @@ def aplicar(root: tk.Tk) -> None:
     st.configure("TProgressbar", background=AZUL, troughcolor=CARTAO, borderwidth=0, thickness=6,
                  lightcolor=AZUL, darkcolor=AZUL, bordercolor=CARTAO)
     _barra_titulo_escura(root)
+
+
+def quebra_automatica(frame, *rotulos) -> None:
+    """Os textos quebram de linha na largura real da janela (não cortam em tela estreita)."""
+    def ajusta(ev):
+        for r in rotulos:
+            r.configure(wraplength=max(280, ev.width - 96))
+    frame.bind("<Configure>", ajusta, add="+")
 
 
 def texto_log(parent, **kw) -> tk.Text:
