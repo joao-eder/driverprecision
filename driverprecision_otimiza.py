@@ -142,6 +142,16 @@ def _pc_regs(sub: str, setting: str) -> list[tuple[str, str, str]]:
     return [("HKLM", p, "ACSettingIndex"), ("HKLM", p, "DCSettingIndex")]
 
 
+def _pc_lidos(sub: str, setting: str, plano: str = "SCHEME_CURRENT") -> tuple[int | None, int | None]:
+    """Valores em vigor (tomada, bateria) de uma configuração do plano; (None, None) se ela não existe neste PC.
+    Lê pelo powercfg: as chaves do registro dos planos são protegidas até contra administrador."""
+    rc, out = _cmd(["powercfg", "/qh", plano, sub, setting])
+    vals = re.findall(r":\s*0x([0-9a-fA-F]{8})\s*$", out, re.M)
+    if rc != 0 or len(vals) < 2:
+        return None, None
+    return int(vals[-2], 16), int(vals[-1], 16)
+
+
 def _pc_set(sub: str, setting: str, ac: int, dc: int | None = None) -> None:
     rc, out = _cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", sub, setting, str(ac)])
     if rc != 0:  # a configuração não existe neste PC (ex.: Wi-Fi em desktop sem placa Wi-Fi)
@@ -343,7 +353,8 @@ def estado(a: dict) -> str:
         return "ATIVO" if pa in (ULTIMATE, ALTO_DESEMPENHO) or re.search(r"Ultimate|Desempenho M[aá]ximo", nome, re.I) else "PADRÃO"
     if t == "powercfg":
         sub, st, ac, _ = a["pc"]
-        return "ATIVO" if REG.get("HKLM", _pc_path(sub, st), "ACSettingIndex")[2] == ac else "PADRÃO"
+        atual = _pc_lidos(sub, st)[0]
+        return "N/A" if atual is None else ("ATIVO" if atual == ac else "PADRÃO")
     if t == "bcd":
         v = _bcd_get("disabledynamictick")
         return "ATIVO" if v and v.lower() in ("yes", "sim") else "PADRÃO"
@@ -374,8 +385,11 @@ def aplicar(aid: str) -> str:
         msg = "plano Desempenho Máximo ativo" if g != ALTO_DESEMPENHO else "plano Alto Desempenho ativo (Desempenho Máximo indisponível neste PC)"
     elif t == "powercfg":
         sub, st, ac, dc = a["pc"]
-        if orig is None:  # guarda o valor personalizado (ou a ausência dele) do plano ativo
-            orig = {"reg": [[h, p, n, *REG.get(h, p, n)] for h, p, n in _pc_regs(sub, st)], "recarregar_plano": True}
+        ac0, dc0 = _pc_lidos(sub, st)
+        if ac0 is None:
+            raise RuntimeError("este PC não tem essa configuração de energia")
+        if orig is None:  # valores em vigor no plano ativo, para devolver pelo próprio powercfg
+            orig = {"pc": [plano_ativo(), sub, st, ac0, dc0]}
         _pc_set(sub, st, ac, dc)
         msg = "aplicado no plano de energia atual"
     elif t == "bcd":
@@ -426,7 +440,19 @@ def desfazer(aid: str) -> str:
             _bcd_restaura(nome, valor)
     if orig.get("hiber"):  # só religa se estava ligada antes
         _cmd(["powercfg", "/hibernate", "on"])
+    if "pc" in orig:
+        plano, sub, st, ac0, dc0 = orig["pc"]
+        rc, out = _cmd(["powercfg", "/setacvalueindex", plano, sub, st, str(ac0)])
+        if rc != 0:
+            raise RuntimeError("o Windows não aceitou devolver a configuração de energia: " + out.strip()[:160])
+        _cmd(["powercfg", "/setdcvalueindex", plano, sub, st, str(dc0)])
+        _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
     for h, p, n, existe, tipo, valor in orig.get("reg", []):
+        m = re.search(rf"PowerSchemes\\({GUID})\\({GUID})\\({GUID})$", p, re.I)
+        if m:  # backup de versão antiga (até 1.3.0) guardava a chave do plano, que o Windows não deixa regravar
+            if existe:
+                _cmd(["powercfg", "/setacvalueindex" if n.upper().startswith("AC") else "/setdcvalueindex", *m.groups(), str(valor)])
+            continue
         if existe and tipo in TIPOS:
             REG.set(h, p, n, tipo, valor)
         else:

@@ -39,7 +39,7 @@ def _foto(ot, a) -> dict:
         return {"plano": ot.plano_ativo()}
     if t == "powercfg":
         sub, st, _, _ = a["pc"]
-        return {"pc": [ot.REG.get(h, p, n) for h, p, n in ot._pc_regs(sub, st)]}
+        return {"pc": ot._pc_lidos(sub, st)}
     if t == "bcd":
         return {"bcd": [ot._bcd_get("disabledynamictick"), ot._bcd_get("useplatformclock")]}
     if t == "hiber":
@@ -74,7 +74,9 @@ def t_otimiza() -> None:
             ot.aplicar(aid)  # segunda vez não pode estragar o backup
             ot.desfazer(aid)
             depois = _foto(ot, a)
-            if depois != antes:
+            if aid == "hibernacao" and antes["hiber"] is None:
+                aviso(f"hibernação: esta máquina não tem hibernação configurada (antes={antes}, depois={depois})")
+            elif depois != antes:
                 falha(f"{aid}: desfazer NÃO restaurou. antes={antes} depois={depois}")
             elif aid in ot.aplicados():
                 falha(f"{aid}: continuou no backup depois de desfazer")
@@ -92,7 +94,7 @@ def t_otimiza() -> None:
             pass
     for aid in ot.aplicados():
         ot.desfazer(aid)
-    dif = [a["id"] for a in ot.AJUSTES if _foto(ot, a) != antes[a["id"]]]
+    dif = [a["id"] for a in ot.AJUSTES if _foto(ot, a) != antes[a["id"]] and not (a["id"] == "hibernacao" and antes["hibernacao"]["hiber"] is None)]
     (falha if dif else ok)(f"aplicar {len(aplic)} juntos + desfazer tudo: " + (f"NÃO restaurou {dif}" if dif else "sistema idêntico ao original"))
 
 
@@ -263,7 +265,7 @@ def t_gui() -> None:
     saida.mkdir(parents=True, exist_ok=True)
     root = tk.Tk()
     root.title("DriverPrecision teste")
-    root.geometry("1180x740+20+20")
+    root.geometry(f"{min(1180, root.winfo_screenwidth())}x{min(740, root.winfo_screenheight() - 60)}+0+0")
     tema.aplicar(root)
     fam = set(tkfont.families(root))
     print("  fonte de texto:", tema.FONTE, "| fonte de ícones:", tema.ICONE)

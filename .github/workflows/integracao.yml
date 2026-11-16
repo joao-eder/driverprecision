@@ -66,8 +66,10 @@ jobs:
         run: |
           python -c "import base64,glob,io,os;from PIL import Image
           for f in sorted(glob.glob(os.environ['PRINTS']+'/*.png')):
-              im=Image.open(f).convert('RGB'); im.thumbnail((1180,740)); b=io.BytesIO(); im.save(b,'JPEG',quality=60)
-              print('IMG-INICIO',os.path.basename(f)); print(base64.b64encode(b.getvalue()).decode()); print('IMG-FIM')"
+              im=Image.open(f).convert('RGB'); im.thumbnail((1000,700)); b=io.BytesIO(); im.save(b,'JPEG',quality=55)
+              t=base64.b64encode(b.getvalue()).decode(); print('IMG-INICIO',os.path.basename(f))
+              for i in range(0,len(t),3000): print('IMG:'+t[i:i+3000])
+              print('IMG-FIM')"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
