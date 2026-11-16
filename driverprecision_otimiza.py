@@ -16,7 +16,6 @@ import json
 import re
 import subprocess
 import winreg
-from pathlib import Path
 
 import driverprecision as dp
 
@@ -144,7 +143,9 @@ def _pc_regs(sub: str, setting: str) -> list[tuple[str, str, str]]:
 
 
 def _pc_set(sub: str, setting: str, ac: int, dc: int | None = None) -> None:
-    _cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", sub, setting, str(ac)])
+    rc, out = _cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", sub, setting, str(ac)])
+    if rc != 0:  # a configuração não existe neste PC (ex.: Wi-Fi em desktop sem placa Wi-Fi)
+        raise RuntimeError("este PC não tem essa configuração de energia" + (f" ({out.strip()[:120]})" if out.strip() else ""))
     if dc is not None:
         _cmd(["powercfg", "/setdcvalueindex", "SCHEME_CURRENT", sub, setting, str(dc)])
     _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
@@ -339,7 +340,7 @@ def estado(a: dict) -> str:
     if t == "plano":
         pa = plano_ativo()
         nome = _cmd(["powercfg", "/getactivescheme"])[1]
-        return "ATIVO" if pa in (ULTIMATE,) or re.search(r"Ultimate|Desempenho M[aá]ximo", nome, re.I) else "PADRÃO"
+        return "ATIVO" if pa in (ULTIMATE, ALTO_DESEMPENHO) or re.search(r"Ultimate|Desempenho M[aá]ximo", nome, re.I) else "PADRÃO"
     if t == "powercfg":
         sub, st, ac, _ = a["pc"]
         return "ATIVO" if REG.get("HKLM", _pc_path(sub, st), "ACSettingIndex")[2] == ac else "PADRÃO"
@@ -364,7 +365,12 @@ def aplicar(aid: str) -> str:
         if orig is None:
             orig = {"plano": plano_ativo()}
         g = _plano_maximo()
-        _cmd(["powercfg", "/setactive", g])
+        rc, out = _cmd(["powercfg", "/setactive", g])
+        if rc != 0 and g != ALTO_DESEMPENHO:  # Modern Standby: tenta o Alto Desempenho
+            g = ALTO_DESEMPENHO
+            rc, out = _cmd(["powercfg", "/setactive", g])
+        if rc != 0:
+            raise RuntimeError("o Windows não aceitou trocar o plano de energia: " + out.strip()[:160])
         msg = "plano Desempenho Máximo ativo" if g != ALTO_DESEMPENHO else "plano Alto Desempenho ativo (Desempenho Máximo indisponível neste PC)"
     elif t == "powercfg":
         sub, st, ac, dc = a["pc"]
@@ -378,7 +384,9 @@ def aplicar(aid: str) -> str:
         if orig is None:
             orig = {"bcd": {"disabledynamictick": _bcd_get("disabledynamictick"),
                             "useplatformclock": _bcd_get("useplatformclock")}}
-        _cmd(["bcdedit", "/set", "disabledynamictick", "yes"])
+        rc, out = _cmd(["bcdedit", "/set", "disabledynamictick", "yes"])
+        if rc != 0:
+            raise RuntimeError("bcdedit recusou a alteração: " + out.strip()[:160])
         _cmd(["bcdedit", "/deletevalue", "useplatformclock"])
         msg = "configuração de boot alterada"
     elif t == "hiber":
