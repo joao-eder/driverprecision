@@ -189,6 +189,29 @@ def powershell(script: str, timeout: int = 600) -> str:
     return out
 
 
+def _dec(b: bytes | None) -> str:
+    """Saída de programas do Windows: UTF-8 quando dá, senão a página do console (cp850 em PT-BR). Nunca falha."""
+    if not b:
+        return ""
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError:
+        return b.decode("cp850", "replace")
+
+
+def caminho_curto(p: Path) -> str:
+    """Caminho 8.3 (sem espaços) para comandos de instaladores que não aceitam aspas. Se não houver, devolve o original."""
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        n = ctypes.windll.kernel32.GetShortPathNameW(str(p), buf, 1024)
+        if 0 < n < 1024:
+            return buf.value
+    except Exception:
+        pass
+    return str(p)
+
+
 def is_admin() -> bool:
     try:
         import ctypes
@@ -382,6 +405,10 @@ def fonte_lenovo(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
             "readme": f"{base}/{_txt(p, 'Files/Readme/File/Name')}" if p.find("Files/Readme/File") is not None else "",
             "kind": "firmware" if re.search(r"BIOS|Firmware", catg or "", re.I) else "driver",
         }
+        # Reboot type 1/4/5 = o instalador reinicia ou desliga o PC por conta própria: nunca no automático
+        rb = p.find("Reboot")
+        if rb is not None and (rb.get("type") or "") in ("1", "4", "5"):
+            cand_base["manual"] = "o instalador da Lenovo reinicia o PC sozinho; instale à parte, com tudo salvo"
         # IDs de hardware do pacote e versão do driver que ele instala
         drv_ver: dict[str, str] = {}
         ids: set[str] = set()
@@ -1129,9 +1156,9 @@ RC_REBOOT = {3010, 1641}
 
 
 def _run(cmd, cwd: Path, timeout: int = 3600) -> int:
-    r = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True, text=True,
+    r = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True,
                        timeout=timeout, creationflags=NO_WINDOW)
-    saida = (r.stdout or "") + (r.stderr or "")
+    saida = _dec(r.stdout) + _dec(r.stderr)
     if saida.strip():
         log("  " + saida.strip()[-800:])
     return r.returncode
@@ -1141,6 +1168,8 @@ def instalar_um(c: dict) -> tuple[bool, bool, str]:
     """Instala um candidato. Devolve (sucesso, precisa_reiniciar, mensagem curta)."""
     if c.get("kind") == "firmware":
         return False, False, "BIOS/firmware não é instalado automaticamente"
+    if c.get("manual"):
+        return False, False, "não instalado automaticamente: " + c["manual"]
     if c["source"] == "WU":
         out = powershell(PS_WU_INSTALL.replace("%IDS%", "'" + c["cid"].split(":", 1)[1] + "'"), 3600)
         m = re.search(r"resultado=(\d+) reboot=(\w+)", out or "")
@@ -1155,11 +1184,15 @@ def instalar_um(c: dict) -> tuple[bool, bool, str]:
         if not list(x.rglob("*.inf")):
             return False, False, "pacote do Catalog sem .inf"
         rc = _run(["pnputil.exe", "/add-driver", str(x / "*.inf"), "/subdirs", "/install"], pasta)
+        if rc == 259:
+            return False, False, "o Windows manteve o driver atual (já é igual ou melhor que o do pacote)"
         return rc in RC_OK, rc in RC_REBOOT, f"pnputil código {rc}"
     if c["cid"].startswith("LEN:"):
+        # os comandos da Lenovo usam %PACKAGEPATH% sem aspas: caminho com espaço (nome do usuário) quebraria
+        pp = caminho_curto(pasta)
         if c.get("extract"):
-            _run(c["extract"].replace("%PACKAGEPATH%", str(pasta)), pasta)
-        cmd = (c.get("install") or "").replace("%PACKAGEPATH%", str(pasta))
+            _run(c["extract"].replace("%PACKAGEPATH%", pp), pasta)
+        cmd = (c.get("install") or "").replace("%PACKAGEPATH%", pp)
         oks = {int(x) for x in re.findall(r"-?\d+", c.get("install_rc") or "0")} | RC_OK
     elif c["cid"].startswith("DELL:"):
         cmd, oks = f'"{arq}" /s /l="{pasta / "dup.log"}"', {0, 2} | RC_OK
@@ -1186,7 +1219,7 @@ def recomendados(e: dict) -> list[tuple[dict, dict]]:
     out = []
     for d in e["devices"]:
         b = d.get("melhor")
-        if not b or b.get("kind") == "firmware":
+        if not b or b.get("kind") == "firmware" or b.get("manual"):
             continue
         if d["status"] in ("INSTALAR", "SUBSTITUIR", "ATUALIZAR"):
             out.append((d, b))

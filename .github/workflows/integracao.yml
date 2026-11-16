@@ -1,0 +1,75 @@
+name: Integração (Windows real)
+
+# Testa de verdade num Windows descartável: aplica e desfaz cada ajuste, instala os componentes de jogos,
+# roda a verificação de drivers, consulta Lenovo/Dell/HP, abre a janela e o .exe compilado.
+on:
+  push:
+    branches: [main]
+    paths: ["driverprecision*.py", "tests/integracao_windows.py", ".github/workflows/integracao.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integracao:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      PRINTS: ${{ github.workspace }}\prints
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pillow pyinstaller==6.11.1
+
+      - name: Interface
+        run: python -X utf8 tests/integracao_windows.py gui
+      - name: Otimização (aplicar e desfazer no registro real)
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py otimiza
+      - name: Links oficiais e assinaturas
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py links
+      - name: Componentes de jogos (instalação real)
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py jogos
+      - name: Catálogos Lenovo, Dell e HP
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py oem
+      - name: Drivers (verificação real)
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py drivers
+
+      - name: O .exe compilado abre
+        if: always()
+        shell: pwsh
+        run: |
+          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza --hidden-import driverprecision_tema driverprecision.py | Out-Null
+          $p = Start-Process dist\DriverPrecision.exe -PassThru
+          Start-Sleep 25
+          $vivos = Get-Process DriverPrecision -ErrorAction SilentlyContinue
+          $titulos = $vivos | Where-Object MainWindowTitle | ForEach-Object MainWindowTitle
+          Write-Host "processos: $($vivos.Count) | janela: $titulos"
+          python -c "from PIL import ImageGrab; ImageGrab.grab().save(r'$env:PRINTS\exe.png')"
+          $vivos | Stop-Process -Force
+          if (-not ($titulos -match 'DriverPrecision')) { throw "o .exe não abriu a janela" }
+
+      - name: Prints (miniaturas no log)
+        if: always()
+        shell: pwsh
+        run: |
+          python -c "import base64,glob,io,os;from PIL import Image
+          for f in sorted(glob.glob(os.environ['PRINTS']+'/*.png')):
+              im=Image.open(f).convert('RGB'); im.thumbnail((1180,740)); b=io.BytesIO(); im.save(b,'JPEG',quality=60)
+              print('IMG-INICIO',os.path.basename(f)); print(base64.b64encode(b.getvalue()).decode()); print('IMG-FIM')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prints-${{ matrix.os }}
+          path: prints

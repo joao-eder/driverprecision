@@ -266,7 +266,7 @@ def _assinatura_ok(arq: Path, signer: str) -> None:
 
 
 def _exec(cmd: list[str] | str, cwd: Path | None = None) -> int:
-    r = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True, text=True,
+    r = subprocess.run(cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True,
                        timeout=3600, creationflags=dp.NO_WINDOW)
     return r.returncode
 

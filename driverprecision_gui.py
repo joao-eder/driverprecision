@@ -18,7 +18,7 @@ from tkinter import messagebox, ttk
 
 import driverprecision as dp
 import driverprecision_tema as tema
-from driverprecision_tema import AZUL, CINZA, LARANJA, VERDE  # noqa: F401
+from driverprecision_tema import AZUL, LARANJA, VERDE
 
 
 def _elevar_se_preciso() -> bool:
@@ -298,9 +298,9 @@ def run_gui() -> None:
     jan = tema.Janela(root, dp.VERSION, dp.is_admin())
     pg_drv = jan.pagina("drivers", "Drivers", "Atualizar pelo fabricante")
     pg_jog = jan.pagina("jogos", "Jogos", "DirectX, Visual C++ e cia.")
-    pg_oti = jan.pagina("otimiza", "Otimização", "30 ajustes para jogar")
+    from driverprecision_abas import AbaJogos, AbaOtimizacao, ot
+    pg_oti = jan.pagina("otimiza", "Otimização", f"{len(ot.AJUSTES)} ajustes para jogar")
     App(root, pg_drv)
-    from driverprecision_abas import AbaJogos, AbaOtimizacao
     AbaJogos(root, pg_jog)
     AbaOtimizacao(root, pg_oti)
     jan.mostrar("drivers")
