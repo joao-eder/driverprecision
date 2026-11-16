@@ -55,6 +55,19 @@ def t_otimiza() -> None:
     ot.BACKUP = Path(tempfile.mkdtemp()) / "bk.json"
     print("  plano ativo:", ot.plano_ativo(), "| BitLocker:", ot.bitlocker_ativo(), "| ambiente:", ot.ambiente())
     print("  Chrome:", ot.tem_chrome(), "| Firefox:", ot.tem_firefox(), "| Office:", ot.tem_office(), "| LibreOffice:", ot.tem_libreoffice())
+    # o plano Desempenho Máximo tem de herdar a ação da tampa e o tempo de tela do plano anterior
+    ot._cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", "SUB_BUTTONS", "LIDACTION", "0"])
+    ot._cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", "SUB_VIDEO", "VIDEOIDLE", "1234"])
+    ot._cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
+    p0 = ot.plano_ativo()
+    ot.aplicar("plano_max")
+    p1 = ot.plano_ativo()
+    tampa, tela = ot._pc_lidos("SUB_BUTTONS", "LIDACTION", p1), ot._pc_lidos("SUB_VIDEO", "VIDEOIDLE", p1)
+    print(f"  plano {p0} -> {p1} | tampa {tampa} | tela {tela}")
+    (ok if (p1 == p0 or (tampa[0] in (0, None) and tela[0] == 1234)) else falha)(
+        f"plano novo herdou a tampa e o tempo de tela (tampa={tampa}, tela={tela})")
+    ot.desfazer("plano_max")
+    (ok if ot.plano_ativo() == p0 else falha)("desfazer voltou ao plano anterior")
     for linha in ot.listar():
         print(f"    estado inicial  {linha['id']:<14} {linha['estado']}")
     # ambientes onde o ajuste legitimamente não se aplica (VM sem GPU PCI, sem Wi-Fi...)

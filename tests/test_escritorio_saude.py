@@ -216,3 +216,40 @@ class Saude(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanoDeEnergia(Base):
+    def test_plano_novo_herda_tampa_e_tela_do_plano_anterior(self):
+        antigo, novo = "381b4222-f694-41f0-9685-ff5bb260df2e", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        planos = {antigo: {"LIDACTION": [0, 0], "VIDEOIDLE": [600, 300], "PBUTTONACTION": [1, 1],
+                           "SBUTTONACTION": [1, 1], "STANDBYIDLE": [0, 900]},
+                  novo: {"LIDACTION": [1, 1], "VIDEOIDLE": [0, 0], "PBUTTONACTION": [1, 1],
+                         "SBUTTONACTION": [1, 1], "STANDBYIDLE": [0, 0]}}
+        ativo = [antigo]
+
+        def cmd(args):
+            op = args[1].lower()
+            if op == "/getactivescheme":
+                return 0, f"GUID do Esquema de Energia: {ativo[0]}  (Equilibrado)"
+            if op == "/list":
+                return 0, f"GUID do Esquema de Energia: {novo}  (Desempenho Máximo)"
+            if op == "/qh":
+                ac, dc = planos[args[2]][args[4]]
+                return 0, f"Índice AC Atual: 0x{ac:08x}\r\nÍndice DC Atual: 0x{dc:08x}\r\n"
+            if op in ("/setacvalueindex", "/setdcvalueindex"):
+                planos[args[2]][args[4]][0 if "ac" in op else 1] = int(args[5])
+                return 0, ""
+            if op == "/setactive":
+                ativo[0] = args[2]
+            return 0, ""
+        cmd_orig, ot._cmd = ot._cmd, cmd
+        try:
+            ot.aplicar("plano_max")
+            self.assertEqual(ativo[0], novo)
+            self.assertEqual(planos[novo]["LIDACTION"], [0, 0])      # tampa: "não fazer nada" continua
+            self.assertEqual(planos[novo]["VIDEOIDLE"], [600, 300])
+            self.assertEqual(planos[novo]["STANDBYIDLE"], [0, 900])
+            ot.desfazer("plano_max")
+            self.assertEqual(ativo[0], antigo)
+        finally:
+            ot._cmd = cmd_orig

@@ -175,6 +175,26 @@ def _pc_lidos(sub: str, setting: str, plano: str = "SCHEME_CURRENT") -> tuple[in
     return int(vals[-2], 16), int(vals[-1], 16)
 
 
+# preferências pessoais que o plano novo herda do anterior (tampa, botões, tempo para apagar a tela e suspender)
+PREFERENCIAS_PLANO = [("SUB_BUTTONS", "LIDACTION"), ("SUB_BUTTONS", "PBUTTONACTION"), ("SUB_BUTTONS", "SBUTTONACTION"),
+                      ("SUB_VIDEO", "VIDEOIDLE"), ("SUB_SLEEP", "STANDBYIDLE")]
+
+
+def _herdar_preferencias(de: str, para: str) -> list[str]:
+    """Copia para o plano novo o que a pessoa escolheu no plano antigo. Devolve o que foi copiado."""
+    copiados = []
+    if not de or de == para:
+        return copiados
+    for sub, st in PREFERENCIAS_PLANO:
+        ac, dc = _pc_lidos(sub, st, de)
+        if ac is None:
+            continue
+        if _cmd(["powercfg", "/setacvalueindex", para, sub, st, str(ac)])[0] == 0:
+            _cmd(["powercfg", "/setdcvalueindex", para, sub, st, str(dc)])
+            copiados.append(st)
+    return copiados
+
+
 def _pc_set(sub: str, setting: str, ac: int, dc: int | None = None) -> None:
     rc, out = _cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", sub, setting, str(ac)])
     if rc != 0:  # a configuração não existe neste PC (ex.: Wi-Fi em desktop sem placa Wi-Fi)
@@ -330,7 +350,8 @@ AJUSTES: list[dict] = [
     # ---- Energia e CPU
     {"id": "plano_max", "cat": "Energia e CPU", "nome": "Plano de energia Desempenho Máximo", "risco": "baixo",
      "tipo": "plano", "desc": "Ativa o plano escondido do Windows que tira os atrasos de economia de energia do processador. "
-                               "Em notebook, use na tomada."},
+                               "Em notebook, use na tomada. O que você escolheu para a tampa, o botão de energia e o tempo "
+                               "para apagar a tela é copiado do seu plano atual."},
     {"id": "core_parking", "cat": "Energia e CPU", "nome": "Desligar estacionamento de núcleos", "risco": "médio",
      "tipo": "powercfg", "pc": (SUB_PROC, CPMINCORES, 100, None),
      "desc": "Mantém todos os núcleos acordados (na tomada). Evita travadinhas quando o jogo pede CPU de repente."},
@@ -395,8 +416,10 @@ AJUSTES: list[dict] = [
      "reg": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects", "VisualFXSetting", DW, 2),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", DW, 0),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", DW, 0),
-             ("HKCU", r"Control Panel\Desktop", "MenuShowDelay", SZ, "0")],
-     "desc": "Tira transparências e animações do Windows. Ajuda em PC fraco."},
+             ("HKCU", r"Control Panel\Desktop", "MenuShowDelay", SZ, "0"),
+             ("HKCU", r"Control Panel\Desktop", "FontSmoothing", SZ, "2"),       # letras continuam nítidas (ClearType)
+             ("HKCU", r"Control Panel\Desktop", "FontSmoothingType", DW, 2)],
+     "desc": "Tira transparências e animações do Windows. Ajuda em PC fraco. O ClearType (letras suaves) continua ligado."},
     {"id": "fast_startup", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Desligar Inicialização rápida", "risco": "baixo", "reboot": True,
      "reg": [("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Power", "HiberbootEnabled", DW, 0)],
      "desc": "Com ela ligada, 'Desligar' na verdade hiberna o núcleo do Windows e os drivers nunca reiniciam do zero. "
@@ -638,9 +661,12 @@ def aplicar(aid: str) -> str:
         if orig is None:
             orig = {"plano": plano_ativo()}
         g = _plano_maximo()
+        anterior = plano_ativo()
+        _herdar_preferencias(anterior, g)
         rc, out = _cmd(["powercfg", "/setactive", g])
         if rc != 0 and g != ALTO_DESEMPENHO:  # Modern Standby: tenta o Alto Desempenho
             g = ALTO_DESEMPENHO
+            _herdar_preferencias(anterior, g)
             rc, out = _cmd(["powercfg", "/setactive", g])
         if rc != 0:
             raise RuntimeError("o Windows não aceitou trocar o plano de energia: " + out.strip()[:160])
