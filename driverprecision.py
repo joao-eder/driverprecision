@@ -180,13 +180,25 @@ def cab_xml(url: str, name: str, ttl_h: float = 24) -> bytes:
 def powershell(script: str, timeout: int = 600) -> str:
     pre = "$ProgressPreference='SilentlyContinue';[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
     enc = base64.b64encode((pre + script).encode("utf-16-le")).decode()
-    r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
-                        "Bypass", "-EncodedCommand", enc], capture_output=True, timeout=timeout,
-                       creationflags=NO_WINDOW)
+    # Aberto a partir do PowerShell 7, o PSModulePath herdado faz o Windows PowerShell 5.1 carregar módulos
+    # incompatíveis (Get-AuthenticodeSignature e outros falham). Sem a variável, o 5.1 usa os módulos dele.
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
+    r = subprocess.run([str(SYS32 / "WindowsPowerShell" / "v1.0" / "powershell.exe"), "-NoProfile", "-NonInteractive",
+                        "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc], capture_output=True, timeout=timeout,
+                       creationflags=NO_WINDOW, env=env)
     out = r.stdout.decode("utf-8", "replace").strip()
     if r.returncode != 0 and not out:
-        raise RuntimeError(r.stderr.decode("utf-8", "replace")[-800:])
+        raise RuntimeError(_erro_ps(r.stderr.decode("utf-8", "replace")))
     return out
+
+
+def _erro_ps(err: str) -> str:
+    """Erro do PowerShell em texto legível (ele devolve XML 'CLIXML' quando a saída é capturada)."""
+    if "CLIXML" in err:
+        partes = re.findall(r'<S S="Error">(.*?)</S>', err, re.S)
+        err = "".join(partes).replace("_x000D__x000A_", " ")
+        err = html.unescape(re.sub(r"\s+", " ", err))
+    return err.strip()[:600]
 
 
 def _dec(b: bytes | None) -> str:
@@ -1211,7 +1223,7 @@ def ponto_restauracao() -> tuple[bool, str]:
                          "-RestorePointType MODIFY_SETTINGS; 'ok'", 600)
         return "ok" in (out or ""), out or ""
     except Exception as ex:
-        return False, str(ex)[:300]
+        return False, str(ex).split(" At line:")[0][:300]
 
 
 def recomendados(e: dict) -> list[tuple[dict, dict]]:

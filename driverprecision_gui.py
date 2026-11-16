@@ -292,8 +292,11 @@ def run_gui() -> None:
         pass
     root = tk.Tk()
     root.title(f"DriverPrecision {dp.VERSION}")
-    root.geometry("1180x740")
-    root.minsize(960, 600)
+    # cabe em qualquer tela (notebooks 1366x768 e menores), centralizada
+    tw, th = root.winfo_screenwidth(), root.winfo_screenheight()
+    w, h = min(1180, tw - 60), min(740, th - 110)
+    root.geometry(f"{w}x{h}+{max(0, (tw - w) // 2)}+{max(0, (th - h) // 2 - 30)}")
+    root.minsize(min(900, w), min(560, h))
     tema.aplicar(root)
     jan = tema.Janela(root, dp.VERSION, dp.is_admin())
     pg_drv = jan.pagina("drivers", "Drivers", "Atualizar pelo fabricante")

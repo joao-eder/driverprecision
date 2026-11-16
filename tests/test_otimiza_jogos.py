@@ -84,6 +84,43 @@ class Otimizacao(unittest.TestCase):
         finally:
             ot._cmd = cmd_orig
 
+    def test_energia_desfaz_pelo_powercfg_sem_tocar_no_registro(self):
+        # as chaves dos planos são protegidas contra escrita: tudo tem de passar pelo powercfg
+        val = {"ac": 10, "dc": 5}
+        plano = "381b4222-f694-41f0-9685-ff5bb260df2e"
+
+        def cmd(args):
+            if args[1] == "/getactivescheme":
+                return 0, f"GUID do Esquema de Energia: {plano}  (Equilibrado)"
+            if args[1] == "/qh":
+                return 0, (f"Índice de Configuração de Energia de AC Atual: 0x{val['ac']:08x}\r\n"
+                           f"Índice de Configuração de Energia de DC Atual: 0x{val['dc']:08x}\r\n")
+            if args[1] in ("/setacvalueindex", "/setdcvalueindex"):
+                val["ac" if "ac" in args[1] else "dc"] = int(args[-1])
+            return 0, ""
+        cmd_orig, ot._cmd = ot._cmd, cmd
+        try:
+            self.assertEqual(ot.estado(ot.POR_ID["core_parking"]), "PADRÃO")
+            ot.aplicar("core_parking")
+            self.assertEqual(val["ac"], 100)
+            self.assertEqual(ot.estado(ot.POR_ID["core_parking"]), "ATIVO")
+            ot.aplicar("core_parking")
+            ot.desfazer("core_parking")
+            self.assertEqual(val, {"ac": 10, "dc": 5})
+            self.assertEqual(ot.REG.d, {})
+        finally:
+            ot._cmd = cmd_orig
+
+    def test_energia_inexistente_nao_finge_que_aplicou(self):
+        cmd_orig, ot._cmd = ot._cmd, lambda args: (1, "configuração inexistente")
+        try:
+            self.assertEqual(ot.estado(ot.POR_ID["wifi_power"]), "N/A")
+            with self.assertRaises(RuntimeError):
+                ot.aplicar("wifi_power")
+            self.assertEqual(ot.aplicados(), [])
+        finally:
+            ot._cmd = cmd_orig
+
     def test_texto_sz_volta_ao_original(self):
         k = r"Control Panel\Keyboard"
         ot.REG.set("HKCU", k, "KeyboardDelay", "SZ", "1")
