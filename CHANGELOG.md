@@ -6,6 +6,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ### Alterado
 - Interface nova: tema escuro, menu lateral grande com ícones (Drivers, Jogos, Otimização) no lugar das abas pequenas, listas e botões redesenhados, barra de título escura no Windows 10/11.
+- A release agora é publicada sozinha quando o `main` recebe uma versão nova: o workflow cria a tag, compila e publica o .exe.
 - Na Otimização, só os ajustes de risco alto ficam em vermelho; nos Jogos, só o que falta ou está desatualizado fica colorido.
 
 ## [1.2.0] - 2026-11-12
