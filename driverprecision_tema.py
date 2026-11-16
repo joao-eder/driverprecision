@@ -10,6 +10,8 @@ import sys
 import tkinter as tk
 from tkinter import font as tkfont, ttk
 
+from driverprecision import recurso
+
 # ---------------------------------------------------------------- cores
 FUNDO = "#0f1117"       # janela
 LATERAL = "#151821"     # menu lateral
@@ -107,6 +109,14 @@ def aplicar(root: tk.Tk) -> None:
     st.configure("TProgressbar", background=AZUL, troughcolor=CARTAO, borderwidth=0, thickness=6,
                  lightcolor=AZUL, darkcolor=AZUL, bordercolor=CARTAO)
     _barra_titulo_escura(root)
+    try:  # ícone da janela e da barra de tarefas
+        if sys.platform == "win32":
+            root.iconbitmap(default=str(recurso("icone.ico")))
+        else:
+            root._icone = tk.PhotoImage(file=str(recurso("logo_66.png")))
+            root.iconphoto(True, root._icone)
+    except Exception:
+        pass
 
 
 def quebra_automatica(frame, *rotulos) -> None:
@@ -152,8 +162,14 @@ class Janela:
 
         marca = tk.Frame(self.lado, bg=LATERAL)
         marca.pack(fill="x", padx=20, pady=(24, 28))
-        logo = tk.Label(marca, text=ICONES["escudo"] if ICONE else "DP", bg=AZUL, fg="#ffffff", width=3,
-                        font=(ICONE, 15) if ICONE else (FONTE, 11, "bold"), pady=6)
+        try:  # logo do app; tamanho conforme a escala da tela (100%, 150%, 200%)
+            esc = root.winfo_fpixels("1i") / 96
+            arq = recurso(f"logo_{88 if esc >= 1.75 else 66 if esc >= 1.25 else 44}.png")
+            self._logo = tk.PhotoImage(file=str(arq))  # guardado no objeto: o Tk não segura a imagem sozinho
+            logo = tk.Label(marca, image=self._logo, bg=LATERAL, bd=0)
+        except Exception:
+            logo = tk.Label(marca, text=ICONES["escudo"] if ICONE else "DP", bg=AZUL, fg="#ffffff", width=3,
+                            font=(ICONE, 15) if ICONE else (FONTE, 11, "bold"), pady=6)
         logo.pack(side="left")
         txt = tk.Frame(marca, bg=LATERAL)
         txt.pack(side="left", padx=(12, 0))
