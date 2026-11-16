@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.3.0] - 2026-11-16
+
+### Alterado
+- Interface nova: tema escuro, menu lateral grande com ícones (Drivers, Jogos, Otimização) no lugar das abas pequenas, listas e botões redesenhados, barra de título escura no Windows 10/11.
+- Na Otimização, só os ajustes de risco alto ficam em vermelho; nos Jogos, só o que falta ou está desatualizado fica colorido.
+
 ## [1.2.0] - 2026-11-12
 
 ### Adicionado
@@ -37,6 +43,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.3.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.0
 [1.2.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.2.0
 [1.1.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.1.0
 [1.0.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.0.0

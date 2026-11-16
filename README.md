@@ -36,11 +36,11 @@ Get-FileHash .\DriverPrecision.exe -Algorithm SHA256
 
 Só entra na instalação automática o que é seguro: driver ligado ao Hardware ID ou ao modelo exato e com versão comprovadamente mais nova. Itens duvidosos (`VERIFICAR`), BIOS e firmware ficam de fora e aparecem no relatório (botão **Ver relatório completo**).
 
-## Aba Jogos: tudo o que os jogos precisam para abrir
+## Jogos: tudo o que os jogos precisam para abrir
 
 Independente da potência do PC, jogos dependem de bibliotecas que o Windows não traz. Sem elas aparecem erros como *"MSVCP140.dll não encontrado"*, *"d3dx9_43.dll ausente"*, controle que não responde ou jogo que fecha sem aviso.
 
-![Aba Jogos](docs/jogos.png)
+![Tela Jogos](docs/jogos.png)
 
 | Componente | Por que importa |
 |---|---|
@@ -53,9 +53,9 @@ Independente da potência do PC, jogos dependem de bibliotecas que o Windows nã
 
 Tudo é baixado dos links oficiais (Microsoft; OpenAL da Creative) e só executa com assinatura digital válida do fabricante.
 
-## Aba Otimização avançada
+## Otimização avançada
 
-![Aba Otimização](docs/otimizacao.png)
+![Tela Otimização](docs/otimizacao.png)
 
 Ajustes profundos que fazem diferença em jogo (não é "limpar arquivos temporários"). Cada um mostra o risco, o estado atual no seu PC e o que faz em português simples.
 

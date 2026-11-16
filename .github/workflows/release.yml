@@ -32,7 +32,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyinstaller==6.11.1
-          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza driverprecision.py
+          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza --hidden-import driverprecision_tema driverprecision.py
 
       - name: Montar pacotes
         shell: pwsh

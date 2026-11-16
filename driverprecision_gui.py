@@ -17,11 +17,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 import driverprecision as dp
-
-AZUL = "#2457d6"
-VERDE = "#2e7d32"
-LARANJA = "#d9730d"
-CINZA = "#5f6b7a"
+import driverprecision_tema as tema
+from driverprecision_tema import AZUL, CINZA, LARANJA, VERDE  # noqa: F401
 
 
 def _elevar_se_preciso() -> bool:
@@ -47,57 +44,37 @@ class App:
         self.marcados: set[str] = set()
         self.relatorio = None
 
-        root.title(f"DriverPrecision {dp.VERSION}")
-        root.geometry("940x680")
-        root.minsize(720, 560)
-        try:
-            ttk.Style().theme_use("vista")
-        except tk.TclError:
-            pass
-        st = ttk.Style()
-        st.configure("Titulo.TLabel", font=("Segoe UI Semibold", 18))
-        st.configure("Sub.TLabel", font=("Segoe UI", 10), foreground=CINZA)
-        st.configure("Msg.TLabel", font=("Segoe UI Semibold", 13))
-        st.configure("Grande.TButton", font=("Segoe UI Semibold", 12), padding=(18, 10))
-        st.configure("Treeview", rowheight=26, font=("Segoe UI", 10))
-        st.configure("Treeview.Heading", font=("Segoe UI Semibold", 10))
-
-        topo = ttk.Frame(parent, padding=(20, 16, 20, 4))
+        topo = ttk.Frame(parent, padding=(28, 24, 28, 4))
         topo.pack(fill="x")
         ttk.Label(topo, text="Drivers do seu computador", style="Titulo.TLabel").pack(anchor="w")
         ttk.Label(topo, text="Encontra e instala o driver certo de cada peça, direto do fabricante. "
-                             "Nada de driver genérico.", style="Sub.TLabel", wraplength=760).pack(anchor="w")
+                             "Nada de driver genérico.", style="Sub.TLabel", wraplength=820).pack(anchor="w")
 
-        self.corpo = ttk.Frame(parent, padding=(20, 10))
+        self.corpo = ttk.Frame(parent, padding=(28, 12))
         self.corpo.pack(fill="both", expand=True)
 
         self.msg = ttk.Label(self.corpo, text="Clique em Verificar agora. Leva de 1 a 3 minutos.",
-                             style="Msg.TLabel", wraplength=760, justify="left")
+                             style="Msg.TLabel", wraplength=820, justify="left")
         self.msg.pack(anchor="w", pady=(0, 8))
         self.passo = ttk.Label(self.corpo, text="", style="Sub.TLabel")
         self.passo.pack(anchor="w")
         self.barra = ttk.Progressbar(self.corpo, mode="indeterminate")
 
-        self.lista_frame = ttk.Frame(self.corpo)
-        self.tree = ttk.Treeview(self.lista_frame, columns=("sel", "disp", "atual", "novo", "fonte"),
-                                 show="headings", selectmode="none")
+        self.lista_frame, self.tree = tema.lista(self.corpo, columns=("sel", "disp", "atual", "novo", "fonte"),
+                                                 show="headings", selectmode="none")
         for col, txt, w, anc in (("sel", "", 36, "center"), ("disp", "Peça do computador", 380, "w"),
                                  ("atual", "Versão atual", 130, "w"), ("novo", "Nova versão", 130, "w"),
                                  ("fonte", "Origem", 150, "w")):
             self.tree.heading(col, text=txt)
             self.tree.column(col, width=w, anchor=anc, stretch=col == "disp")
-        sb = ttk.Scrollbar(self.lista_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
         self.tree.bind("<Button-1>", self._toggle)
-        self.aviso = ttk.Label(self.corpo, text="", style="Sub.TLabel", wraplength=760, justify="left")
+        self.aviso = ttk.Label(self.corpo, text="", style="Sub.TLabel", wraplength=820, justify="left")
 
         self.det_frame = ttk.Frame(self.corpo)
-        self.txt = tk.Text(self.det_frame, height=10, font=("Consolas", 9), wrap="word", state="disabled")
+        self.txt = tema.texto_log(self.det_frame, height=10)
         self.txt.pack(fill="both", expand=True)
 
-        base = ttk.Frame(parent, padding=(20, 8, 20, 16))
+        base = ttk.Frame(parent, padding=(28, 10, 28, 22))
         base.pack(fill="x")
         self.btn = ttk.Button(base, text="Verificar agora", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
@@ -314,15 +291,19 @@ def run_gui() -> None:
     except Exception:
         pass
     root = tk.Tk()
-    nb = ttk.Notebook(root)
-    nb.pack(fill="both", expand=True)
-    abas = [ttk.Frame(nb) for _ in range(3)]
-    for f, t in zip(abas, ("  Drivers  ", "  Jogos  ", "  Otimização avançada  ")):
-        nb.add(f, text=t)
-    App(root, abas[0])
+    root.title(f"DriverPrecision {dp.VERSION}")
+    root.geometry("1180x740")
+    root.minsize(960, 600)
+    tema.aplicar(root)
+    jan = tema.Janela(root, dp.VERSION, dp.is_admin())
+    pg_drv = jan.pagina("drivers", "Drivers", "Atualizar pelo fabricante")
+    pg_jog = jan.pagina("jogos", "Jogos", "DirectX, Visual C++ e cia.")
+    pg_oti = jan.pagina("otimiza", "Otimização", "30 ajustes para jogar")
+    App(root, pg_drv)
     from driverprecision_abas import AbaJogos, AbaOtimizacao
-    AbaJogos(root, abas[1])
-    AbaOtimizacao(root, abas[2])
+    AbaJogos(root, pg_jog)
+    AbaOtimizacao(root, pg_oti)
+    jan.mostrar("drivers")
     root.mainloop()
 
 
