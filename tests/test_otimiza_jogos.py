@@ -121,6 +121,19 @@ class Otimizacao(unittest.TestCase):
         finally:
             ot._cmd = cmd_orig
 
+    def test_aviso_de_reinicio_some_depois_de_reiniciar(self):
+        orig = ot.ligado_desde
+        try:
+            ot.ligado_desde = lambda: 0.0                    # PC ligado "desde sempre"
+            ot.aplicar("throttling")                         # pede reinício
+            ot.aplicar("prio_sep")                           # não pede
+            self.assertEqual(ot.aguardando_reinicio(), {"throttling"})
+            import time
+            ot.ligado_desde = lambda: time.time() + 60       # reiniciou depois de aplicar
+            self.assertEqual(ot.aguardando_reinicio(), set())
+        finally:
+            ot.ligado_desde = orig
+
     def test_texto_sz_volta_ao_original(self):
         k = r"Control Panel\Keyboard"
         ot.REG.set("HKCU", k, "KeyboardDelay", "SZ", "1")

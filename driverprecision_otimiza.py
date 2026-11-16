@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 import winreg
 
 import driverprecision as dp
@@ -424,6 +425,7 @@ def aplicar(aid: str) -> str:
         msg = f"{len(regs)} valor(es) do registro alterados"
     b[aid] = orig
     _salvar_backup(b)
+    _marca_reinicio(a)
     return msg + (" - reinicie para valer" if a.get("reboot") else "")
 
 
@@ -461,7 +463,49 @@ def desfazer(aid: str) -> str:
         _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
     del b[aid]
     _salvar_backup(b)
+    _marca_reinicio(a)
     return "restaurado ao valor original" + (" - reinicie para valer" if a.get("reboot") else "")
+
+
+# --------------------------------------------------------------------------- reinício pendente
+
+def _arq_reinicio():
+    return BACKUP.with_name("otimizacao_reinicio.json")
+
+
+def ligado_desde() -> float:
+    """Momento em que o Windows iniciou de verdade (com a Inicialização rápida, 'Desligar' não conta)."""
+    try:
+        import ctypes
+        f = ctypes.windll.kernel32.GetTickCount64
+        f.restype = ctypes.c_ulonglong
+        return time.time() - f() / 1000
+    except Exception:
+        return 0.0
+
+
+def _marca_reinicio(a: dict) -> None:
+    if not a.get("reboot"):
+        return
+    try:
+        d = json.loads(_arq_reinicio().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        d = {}
+    d[a["id"]] = time.time()
+    try:
+        _arq_reinicio().write_text(json.dumps(d), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def aguardando_reinicio() -> set[str]:
+    """Ajustes alterados por este programa depois da última inicialização: só valem ao reiniciar."""
+    try:
+        d = json.loads(_arq_reinicio().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    desde = ligado_desde()
+    return {k for k, quando in d.items() if quando > desde}
 
 
 def aplicados() -> list[str]:
@@ -470,6 +514,7 @@ def aplicados() -> list[str]:
 
 def listar() -> list[dict]:
     out = []
+    pend = aguardando_reinicio()
     for a in AJUSTES:
         try:
             st = estado(a)
@@ -477,5 +522,5 @@ def listar() -> list[dict]:
             st = "N/A"
         out.append({"id": a["id"], "nome": a["nome"], "cat": a["cat"], "risco": a["risco"], "estado": st,
                     "desc": a["desc"], "reboot": a.get("reboot", False), "seguranca": a.get("seguranca", False),
-                    "nosso": a["id"] in aplicados()})
+                    "nosso": a["id"] in aplicados(), "reiniciar": a["id"] in pend})
     return out

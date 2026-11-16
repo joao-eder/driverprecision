@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.3.3] - 2026-11-16
+
+### Alterado
+- Otimização: o aviso de reinício (↻) deixou de ser uma etiqueta fixa. Agora só aparece nos ajustes aplicados ou desfeitos depois da última inicialização do Windows, e some ao reiniciar.
+
 ## [1.3.2] - 2026-11-16
 
 ### Adicionado
@@ -66,6 +71,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.3.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.3
 [1.3.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.2
 [1.3.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.1
 [1.3.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.0
