@@ -84,6 +84,7 @@ Mesmo motor da Otimização (backup do valor original, Desfazer, aviso de reiní
 
 | Categoria | Ajustes |
 |---|---|
+| Notebook | fechar a tampa não suspende nem desliga (também na tela Otimização) |
 | Memória e muitas abas | compressão de memória · arquivo de paginação automático · SysMain |
 | Navegadores | Chrome: Economia de memória e fechar de verdade · Firefox: sem agente e telemetria em segundo plano |
 | Excel e Office | Office sem animações · Office sem aceleração gráfica (só com sintoma) · LibreOffice: cache de imagens maior |

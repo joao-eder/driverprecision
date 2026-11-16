@@ -44,6 +44,9 @@ def _foto(ot, a) -> dict:
         return {"bcd": [ot._bcd_get("disabledynamictick"), ot._bcd_get("useplatformclock")]}
     if t == "hiber":
         return {"hiber": ot.REG.get("HKLM", ot.PWR, "HibernateEnabled")[2]}
+    if t == "todos_planos":
+        sub, st, _, _ = a["pc"]
+        return {"planos": {g: ot._pc_lidos(sub, st, g) for g in ot.planos()}}
     if t == "ps":
         return {"ps": ot._ps_ler(a), "guardar": [ot.REG.get(h, p, n) for h, p, n in a.get("guardar", [])]}
     return {"reg": [ot.REG.get(h, p, n) for h, p, n, _, _ in ot.regs_do_ajuste(a)]}
@@ -53,6 +56,7 @@ def t_otimiza() -> None:
     titulo("OTIMIZAÇÃO: aplicar -> conferir -> desfazer -> conferir que voltou ao original")
     import driverprecision_otimiza as ot
     ot.BACKUP = Path(tempfile.mkdtemp()) / "bk.json"
+    ot._BATERIA = True  # a máquina de teste não tem bateria: força o ajuste da tampa para testá-lo de verdade
     print("  plano ativo:", ot.plano_ativo(), "| BitLocker:", ot.bitlocker_ativo(), "| ambiente:", ot.ambiente())
     print("  Chrome:", ot.tem_chrome(), "| Firefox:", ot.tem_firefox(), "| Office:", ot.tem_office(), "| LibreOffice:", ot.tem_libreoffice())
     # o plano Desempenho Máximo tem de herdar a ação da tampa e o tempo de tela do plano anterior

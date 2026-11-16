@@ -195,6 +195,25 @@ def _herdar_preferencias(de: str, para: str) -> list[str]:
     return copiados
 
 
+def planos() -> list[str]:
+    """GUIDs de todos os planos de energia do PC."""
+    return [m.lower() for m in dict.fromkeys(re.findall(GUID, _cmd(["powercfg", "/list"])[1], re.I))]
+
+
+_BATERIA: bool | None = None
+
+
+def tem_bateria() -> bool:
+    """Notebook (tem bateria e, portanto, tampa)."""
+    global _BATERIA
+    if _BATERIA is None:
+        try:
+            _BATERIA = dp.powershell("[bool](Get-CimInstance Win32_Battery)", 60).strip().lower() == "true"
+        except Exception:
+            _BATERIA = False
+    return _BATERIA
+
+
 def _pc_set(sub: str, setting: str, ac: int, dc: int | None = None) -> None:
     rc, out = _cmd(["powercfg", "/setacvalueindex", "SCHEME_CURRENT", sub, setting, str(ac)])
     if rc != 0:  # a configuração não existe neste PC (ex.: Wi-Fi em desktop sem placa Wi-Fi)
@@ -289,7 +308,7 @@ def controlado_pela_ti(a: dict) -> bool:
     """Áreas que a TI de uma empresa costuma gerenciar: políticas, serviços e segurança."""
     if a.get("ti") is not None:
         return bool(a["ti"])
-    if a.get("tipo") in ("ps", "bcd", "msi_gpu", "plano", "powercfg", "hiber"):  # segurança, boot e energia
+    if a.get("tipo") in ("ps", "bcd", "msi_gpu", "plano", "powercfg", "hiber", "todos_planos"):  # segurança, boot e energia
         return True
     return any("\\policies\\" in p.lower() or "\\services\\" in p.lower() for _, p, *_ in a.get("reg", []))
 
@@ -589,7 +608,18 @@ AJUSTES += [
              "Usa até alguns GB do disco C:."},
 ]
 
-ORDEM_CATS = {"escritorio": ["Memória e muitas abas", "Navegadores", "Excel e Office", "Rede", "Segurança", "Windows", "Disco",
+AJUSTES += [
+    {"id": "tampa_nada", "perfis": ("jogos", "escritorio"), "cat": "Notebook", "nome": "Fechar a tampa não suspende nem desliga",
+     "risco": "baixo", "tipo": "todos_planos", "pc": ("SUB_BUTTONS", "LIDACTION", 0, 0),
+     "aplica_se": lambda: tem_bateria(), "requisito": "só para notebook",
+     "desc": "Ao fechar ou baixar a tampa, só a tela do notebook apaga: programas, downloads, VPN, chamada e monitor externo "
+             "continuam funcionando. Evita o monitor ligado em hub USB-C voltar com resolução errada depois de suspender. "
+             "Vale na bateria e na tomada, em todos os planos de energia. Para suspender, use o menu Iniciar."},
+]
+
+ORDEM_CATS = {"jogos": ["Notebook", "Energia e CPU", "Placa de vídeo", "Agendador multimídia", "Rede", "Mouse e teclado", "Windows",
+                        "Disco", "Segurança x desempenho"],
+              "escritorio": ["Notebook", "Memória e muitas abas", "Navegadores", "Excel e Office", "Rede", "Segurança", "Windows", "Disco",
                              "Mouse e teclado"]}
 POR_ID = {a["id"]: a for a in AJUSTES}
 
@@ -628,6 +658,14 @@ def estado(a: dict) -> str:
         return "ATIVO" if REG.get("HKLM", PWR, "HibernateEnabled")[2] == 0 else "PADRÃO"
     if a.get("aplica_se") and not a["aplica_se"]():
         return "N/A"
+    if t == "todos_planos":
+        sub, st, ac, dc = a["pc"]
+        vals = [_pc_lidos(sub, st, g) for g in planos()]
+        vals = [v for v in vals if v[0] is not None]
+        if not vals:
+            return "N/A"
+        iguais = sum(1 for v in vals if v == (ac, dc))
+        return "ATIVO" if iguais == len(vals) else ("PARCIAL" if iguais else "PADRÃO")
     if t == "ps":
         v = _ps_ler(a)
         return "N/A" if v is None else ("ATIVO" if _ps_ativo(a, v) else "PADRÃO")
@@ -646,7 +684,20 @@ def aplicar(aid: str) -> str:
     b = _ler_backup()
     orig = b.get(aid)  # já aplicado antes: mantém o original da primeira vez
     t = a.get("tipo")
-    if t == "ps":
+    if t == "todos_planos":
+        sub, st, ac, dc = a["pc"]
+        atuais = {g: _pc_lidos(sub, st, g) for g in planos()}
+        atuais = {g: v for g, v in atuais.items() if v[0] is not None}
+        if not atuais:
+            raise RuntimeError("este PC não tem essa configuração de energia")
+        if orig is None:
+            orig = {"todos_planos": [[g, sub, st, v[0], v[1]] for g, v in atuais.items()]}
+        for g in atuais:
+            _cmd(["powercfg", "/setacvalueindex", g, sub, st, str(ac)])
+            _cmd(["powercfg", "/setdcvalueindex", g, sub, st, str(dc)])
+        _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
+        msg = f"aplicado em {len(atuais)} plano(s) de energia"
+    elif t == "ps":
         v = _ps_ler(a)
         if v is None:
             raise RuntimeError("recurso não disponível neste Windows")
@@ -736,6 +787,11 @@ def desfazer(aid: str) -> str:
             _bcd_restaura(nome, valor)
     if orig.get("hiber"):  # só religa se estava ligada antes
         _cmd(["powercfg", "/hibernate", "on"])
+    for g, sub, st, ac0, dc0 in orig.get("todos_planos", []):
+        _cmd(["powercfg", "/setacvalueindex", g, sub, st, str(ac0)])
+        _cmd(["powercfg", "/setdcvalueindex", g, sub, st, str(dc0)])
+    if orig.get("todos_planos"):
+        _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
     if "pc" in orig:
         plano, sub, st, ac0, dc0 = orig["pc"]
         rc, out = _cmd(["powercfg", "/setacvalueindex", plano, sub, st, str(ac0)])

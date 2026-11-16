@@ -14,6 +14,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - Tela **Saúde do PC**: diagnóstico só de leitura (segurança, integridade, memória, rede) com dicas em ordem de gravidade, e reparos com um clique (DNS, fila de impressão, temporários, chkdsk, SFC, DISM, redefinir rede).
 - **PC de empresa** (domínio, Entra ID ou Intune) detectado: o que a TI controla fica bloqueado nas telas de ajustes, nas duas telas.
 - Ajustes de programas não instalados (Chrome, Firefox, Office, LibreOffice) aparecem como "Não se aplica".
+- **Fechar a tampa não suspende nem desliga** (notebook, nas telas Otimização e Escritório): só a tela do notebook apaga; programas, VPN e monitor externo continuam. Vale em todos os planos de energia, na bateria e na tomada.
+
+### Corrigido
+- O plano **Desempenho Máximo** trocava a ação da tampa, do botão de energia e os tempos de tela e suspensão pelos padrões do Windows (fechar a tampa passava a suspender, e monitores em hub USB-C voltavam com resolução errada). Agora o plano novo herda essas preferências do plano anterior.
+- "Efeitos visuais no mínimo" mantém o ClearType (letras nítidas) ligado.
 
 ### Alterado
 - "Desfazer tudo" desfaz só os ajustes da tela em que você está.

@@ -37,7 +37,8 @@ class Perfis(Base):
         self.assertNotIn("chrome_memoria", ids_j)
         self.assertIn("telemetria", ids_j & ids_e)    # compartilhados aparecem nas duas
         cats = [a["cat"] for a in esc]
-        self.assertEqual(cats[0], "Memória e muitas abas")
+        self.assertEqual(cats[0], "Notebook")
+        self.assertEqual(cats[1], "Memória e muitas abas")
         self.assertEqual(cats, sorted(cats, key=ot.ORDEM_CATS["escritorio"].index))
 
     def test_nenhum_ajuste_de_escritorio_reduz_seguranca(self):
@@ -253,3 +254,41 @@ class PlanoDeEnergia(Base):
             self.assertEqual(ativo[0], antigo)
         finally:
             ot._cmd = cmd_orig
+
+
+class Tampa(Base):
+    def test_tampa_vale_em_todos_os_planos_e_desfaz(self):
+        p1, p2 = "381b4222-f694-41f0-9685-ff5bb260df2e", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"
+        lid = {p1: [1, 3], p2: [0, 0]}          # Equilibrado: suspende na tomada, desliga na bateria; Alto desempenho: nada
+
+        def cmd(args):
+            op = args[1].lower()
+            if op == "/list":
+                return 0, f"GUID: {p1}  (Equilibrado) *\r\nGUID: {p2}  (Alto desempenho)"
+            if op == "/getactivescheme":
+                return 0, f"GUID: {p1}"
+            if op == "/qh":
+                ac, dc = lid[args[2]]
+                return 0, f"AC: 0x{ac:08x}\r\nDC: 0x{dc:08x}\r\n"
+            if op in ("/setacvalueindex", "/setdcvalueindex"):
+                lid[args[2]][0 if "ac" in op else 1] = int(args[5])
+            return 0, ""
+        cmd_orig, bat = ot._cmd, ot._BATERIA
+        ot._cmd, ot._BATERIA = cmd, True
+        try:
+            a = ot.POR_ID["tampa_nada"]
+            self.assertEqual(set(a["perfis"]), {"jogos", "escritorio"})
+            self.assertEqual(ot.estado(a), "PARCIAL")
+            ot.aplicar("tampa_nada")
+            self.assertEqual(lid, {p1: [0, 0], p2: [0, 0]})
+            self.assertEqual(ot.estado(a), "ATIVO")
+            ot.desfazer("tampa_nada")
+            self.assertEqual(lid, {p1: [1, 3], p2: [0, 0]})
+            ot._BATERIA = False                  # desktop: não se aplica
+            self.assertEqual(ot.estado(a), "N/A")
+        finally:
+            ot._cmd, ot._BATERIA = cmd_orig, bat
+
+    def test_notebook_no_topo_das_duas_telas(self):
+        for perfil in ("jogos", "escritorio"):
+            self.assertEqual(ot.do_perfil(perfil)[0]["id"], "tampa_nada", perfil)
