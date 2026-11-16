@@ -227,7 +227,7 @@ class AbaJogos(Aba):
 # =========================================================================== Otimização
 
 COR_RISCO = {"baixo": tema.TEXTO, "médio": tema.TEXTO, "alto": VERMELHO}
-ROT_EST = {"ATIVO": "● Ativo", "PADRÃO": "○ Padrão do Windows", "PARCIAL": "◐ Parcial", "N/A": "— Não se aplica"}
+ROT_EST = {"ATIVO": "● Ativo", "PADRÃO": "○ Padrão", "PARCIAL": "◐ Parcial", "N/A": "— Não se aplica"}
 
 
 class AbaOtimizacao(Aba):
@@ -242,7 +242,7 @@ class AbaOtimizacao(Aba):
         fr.pack(fill="both", expand=True, pady=(4, 0))
         self.tree.heading("#0", text="Ajuste")
         self.tree.column("#0", width=290, minwidth=200, stretch=True)
-        for c, t, w in (("sel", "", 36), ("risco", "Risco", 70), ("estado", "Estado atual", 170)):
+        for c, t, w in (("sel", "", 36), ("risco", "Risco", 70), ("estado", "Estado atual", 200)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, stretch=False, anchor="center" if c != "estado" else "w")
         for r, cor in COR_RISCO.items():
@@ -298,12 +298,16 @@ class AbaOtimizacao(Aba):
         for a in lista:
             if a["cat"] not in cats:
                 cats[a["cat"]] = self.tree.insert("", "end", text=a["cat"], open=True, tags=("cat",))
-            nome = a["nome"] + ("  ⚠ reduz segurança" if a["seguranca"] else "") + ("  ↻" if a["reboot"] else "")
+            nome = a["nome"] + ("  ⚠ reduz segurança" if a["seguranca"] else "")
+            est = ROT_EST.get(a["estado"], a["estado"]) + ("  ↻ reinicie" if a.get("reiniciar") else "")
             self.tree.insert(cats[a["cat"]], "end", iid=a["id"], text=nome,
-                             values=(OFF if a["estado"] != "N/A" else "", a["risco"], ROT_EST.get(a["estado"], a["estado"])),
+                             values=(OFF if a["estado"] != "N/A" else "", a["risco"], est),
                              tags=(a["risco"],))
         n_at = sum(1 for a in lista if a["estado"] == "ATIVO")
-        self.msg.config(text=f"{n_at} de {len(lista)} ajustes já estão ativos. ↻ = precisa reiniciar.", foreground="")
+        n_rb = sum(1 for a in lista if a.get("reiniciar"))
+        self.msg.config(text=f"{n_at} de {len(lista)} ajustes estão ativos." +
+                             (f" {n_rb} só passam a valer quando você reiniciar o PC (↻)." if n_rb else ""),
+                        foreground=LARANJA if n_rb else "")
         self._botoes(True)
 
     def _clique(self, ev) -> None:
@@ -321,7 +325,8 @@ class AbaOtimizacao(Aba):
         s = self.tree.selection()
         if s and s[0] in self.ajustes:
             a = self.ajustes[s[0]]
-            self.desc.config(text=f"{a['nome']} — risco {a['risco']}. {a['desc']}")
+            extra = " Aguardando você reiniciar o PC." if a.get("reiniciar") else (" Precisa reiniciar para valer." if a["reboot"] else "")
+            self.desc.config(text=f"{a['nome']} — risco {a['risco']}. {a['desc']}{extra}")
 
     def recomendados(self) -> None:
         for iid, a in self.ajustes.items():
