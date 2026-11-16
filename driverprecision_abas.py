@@ -10,6 +10,7 @@ from tkinter import messagebox, ttk
 import driverprecision as dp
 import driverprecision_jogos as jg
 import driverprecision_otimiza as ot
+import driverprecision_saude as sd
 import driverprecision_tema as tema
 from driverprecision_tema import AZUL, CINZA, LARANJA, VERDE, VERMELHO
 ON, OFF = "☑", "☐"
@@ -230,12 +231,20 @@ COR_RISCO = {"baixo": tema.TEXTO, "médio": tema.TEXTO, "alto": VERMELHO}
 ROT_EST = {"ATIVO": "● Ativo", "PADRÃO": "○ Padrão", "PARCIAL": "◐ Parcial", "N/A": "— Não se aplica"}
 
 
+TEXTOS_PERFIL = {
+    "jogos": ("Otimização avançada",
+              "Ajustes profundos do Windows para jogos. Marque o que quer aplicar. Antes de mexer, o valor "
+              "original de cada configuração é guardado e um ponto de restauração é criado — tudo pode ser desfeito por aqui."),
+    "escritorio": ("Escritório",
+                   "Para trabalhar com muitas abas, planilhas (Excel, Google Planilhas, LibreOffice), pastas e impressoras "
+                   "da rede e VPN, com mais segurança. O valor original de cada configuração é guardado e tudo pode ser desfeito."),
+}
+
+
 class AbaOtimizacao(Aba):
-    def __init__(self, root, parent) -> None:
-        super().__init__(root, parent, "Otimização avançada",
-                         "Ajustes profundos do Windows para jogos. Marque o que quer aplicar. Antes de mexer, o valor "
-                         "original de cada configuração é guardado e um ponto de restauração é criado — "
-                         "tudo pode ser desfeito por aqui.")
+    def __init__(self, root, parent, perfil: str = "jogos") -> None:
+        self.perfil = perfil
+        super().__init__(root, parent, *TEXTOS_PERFIL[perfil])
         self.ajustes: dict[str, dict] = {}
         self.marcados: set[str] = set()
         fr, self.tree = tema.lista(self.corpo, columns=("sel", "risco", "estado"), show="tree headings", selectmode="browse")
@@ -248,6 +257,7 @@ class AbaOtimizacao(Aba):
         for r, cor in COR_RISCO.items():
             self.tree.tag_configure(r, foreground=cor)
         self.tree.tag_configure("cat", font=(tema.FONTE, 10, "bold"), foreground=tema.SUAVE, background=tema.CARTAO_2)
+        self.tree.tag_configure("bloq", foreground=tema.APAGADO)
         self.tree.bind("<Button-1>", self._clique)
         self.tree.bind("<<TreeviewSelect>>", self._mostra_desc)
         self.desc = ttk.Label(self.corpo, text="Clique num ajuste para ver o que ele faz.", style="Sub.TLabel",
@@ -265,7 +275,7 @@ class AbaOtimizacao(Aba):
         self.btn_rec.pack(side="left", padx=(8, 0))
         self.msg.config(text="Lendo configurações atuais...")
         self._botoes(False)
-        self.trabalhar(lambda: self.q.put(("lista", ot.listar())))
+        self.trabalhar(lambda: self.q.put(("lista", ot.listar(self.perfil))))
 
     def _botoes(self, on: bool) -> None:
         on = on and dp.is_admin()
@@ -285,7 +295,7 @@ class AbaOtimizacao(Aba):
                             foreground=VERDE if not falha else LARANJA)
             if rb:
                 _oferecer_reinicio("Alguns ajustes só valem depois de reiniciar.")
-            self.trabalhar(lambda: self.q.put(("lista", ot.listar())))
+            self.trabalhar(lambda: self.q.put(("lista", ot.listar(self.perfil))))
 
     def ao_erro(self) -> None:
         self._botoes(True)
@@ -299,15 +309,22 @@ class AbaOtimizacao(Aba):
             if a["cat"] not in cats:
                 cats[a["cat"]] = self.tree.insert("", "end", text=a["cat"], open=True, tags=("cat",))
             nome = a["nome"] + ("  ⚠ reduz segurança" if a["seguranca"] else "")
-            est = ROT_EST.get(a["estado"], a["estado"]) + ("  ↻ reinicie" if a.get("reiniciar") else "")
+            empresa = a.get("bloqueado", "").startswith("PC gerenciado")
+            est = ROT_EST.get(a["estado"], a["estado"]) + ("  ↻ reinicie" if a.get("reiniciar") else "") + \
+                ("  🔒 empresa" if empresa else "")
+            pode = a["estado"] != "N/A" and not a.get("bloqueado")
             self.tree.insert(cats[a["cat"]], "end", iid=a["id"], text=nome,
-                             values=(OFF if a["estado"] != "N/A" else "", a["risco"], est),
-                             tags=(a["risco"],))
+                             values=(OFF if pode else "", a["risco"], est),
+                             tags=("bloq",) if empresa else (a["risco"],))
         n_at = sum(1 for a in lista if a["estado"] == "ATIVO")
         n_rb = sum(1 for a in lista if a.get("reiniciar"))
-        self.msg.config(text=f"{n_at} de {len(lista)} ajustes estão ativos." +
-                             (f" {n_rb} só passam a valer quando você reiniciar o PC (↻)." if n_rb else ""),
-                        foreground=LARANJA if n_rb else "")
+        n_emp = sum(1 for a in lista if a.get("bloqueado", "").startswith("PC gerenciado"))
+        txt = f"{n_at} de {len(lista)} ajustes estão ativos."
+        if n_rb:
+            txt += f" {n_rb} só passam a valer quando você reiniciar o PC (↻)."
+        if n_emp:
+            txt += f" PC da empresa: {n_emp} ajuste(s) ficam com a TI (🔒)."
+        self.msg.config(text=txt, foreground=LARANJA if n_rb else "")
         self._botoes(True)
 
     def _clique(self, ev) -> None:
@@ -326,11 +343,13 @@ class AbaOtimizacao(Aba):
         if s and s[0] in self.ajustes:
             a = self.ajustes[s[0]]
             extra = " Aguardando você reiniciar o PC." if a.get("reiniciar") else (" Precisa reiniciar para valer." if a["reboot"] else "")
+            if a.get("bloqueado"):
+                extra += f" [{a['bloqueado'][0].upper() + a['bloqueado'][1:]}.]"
             self.desc.config(text=f"{a['nome']} — risco {a['risco']}. {a['desc']}{extra}")
 
     def recomendados(self) -> None:
         for iid, a in self.ajustes.items():
-            marcar = a["risco"] in ("baixo", "médio") and a["estado"] in ("PADRÃO", "PARCIAL")
+            marcar = a["risco"] in ("baixo", "médio") and a["estado"] in ("PADRÃO", "PARCIAL") and a.get("recomendado", True)
             if self.tree.set(iid, "sel") == "":
                 continue
             (self.marcados.add if marcar else self.marcados.discard)(iid)
@@ -348,7 +367,7 @@ class AbaOtimizacao(Aba):
                         "Ponto de restauração",
                         "Não foi possível criar um ponto de restauração (a Proteção do Sistema pode estar desligada).\n\n"
                         "Os valores originais continuam salvos e o botão Desfazer funciona.\n\nContinuar?"):
-                    self.q.put(("lista", ot.listar()))
+                    self.q.put(("lista", ot.listar(self.perfil)))
                     return
             falha, rb = [], False
             for n, aid in enumerate(ids, 1):
@@ -383,9 +402,136 @@ class AbaOtimizacao(Aba):
             self._executa(ids, ot.desfazer, "Desfazendo", False)
 
     def desfazer_tudo(self) -> None:
-        ids = ot.aplicados()
+        ids = [i for i in ot.aplicados() if i in self.ajustes]  # só os desta tela
         if not ids:
-            messagebox.showinfo("Otimização", "Nenhum ajuste foi aplicado por este programa.")
+            messagebox.showinfo("Desfazer tudo", "Nenhum ajuste desta tela foi aplicado por este programa.")
             return
         if messagebox.askyesno("Desfazer tudo", f"Voltar {len(ids)} ajuste(s) ao valor original?"):
             self._executa(ids, ot.desfazer, "Desfazendo", False)
+
+
+# =========================================================================== Saúde do PC
+
+ROT_SAUDE = {"OK": "✔ OK", "ATENÇÃO": "⚠ Atenção", "PROBLEMA": "✖ Problema", "INFO": "ℹ Informação"}
+
+
+class AbaSaude(Aba):
+    def __init__(self, root, parent) -> None:
+        super().__init__(root, parent, "Saúde do PC",
+                         "Segurança, integridade do Windows, memória e rede numa olhada só. A verificação só lê; "
+                         "nada é alterado até você clicar num reparo.")
+        self.itens: dict[str, dict] = {}
+        fr, self.tree = tema.lista(self.corpo, columns=("sit", "det"), show="tree headings", selectmode="browse")
+        fr.pack(fill="both", expand=True, pady=(4, 0))
+        self.tree.heading("#0", text="Item")
+        self.tree.column("#0", width=300, minwidth=230, stretch=True)
+        self.tree.heading("sit", text="Situação")
+        self.tree.column("sit", width=115, stretch=False)
+        self.tree.heading("det", text="Detalhe")
+        self.tree.column("det", width=260, stretch=True)
+        for st, cor in (("OK", tema.TEXTO), ("ATENÇÃO", LARANJA), ("PROBLEMA", VERMELHO), ("INFO", CINZA)):
+            self.tree.tag_configure(st, foreground=cor)
+        self.tree.tag_configure("cat", font=(tema.FONTE, 10, "bold"), foreground=tema.SUAVE, background=tema.CARTAO_2)
+        self.tree.bind("<<TreeviewSelect>>", self._mostra)
+
+        rep = ttk.Frame(self.corpo)
+        rep.pack(side="bottom", fill="x", pady=(8, 0), before=fr)
+        self.desc = ttk.Label(self.corpo, text="Clique num item para ver a dica. Passe o mouse num reparo para ver o que ele faz.",
+                              style="Sub.TLabel", wraplength=820, justify="left")
+        self.desc.pack(side="bottom", anchor="w", pady=(6, 0), before=rep)
+        tema.quebra_automatica(parent, self.desc)
+        ttk.Label(rep, text="Reparos", style="Sub.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self.botoes_rep = []
+        for n, r in enumerate(sd.REPAROS):
+            b = ttk.Button(rep, text=r["nome"], style="Rep.TButton", command=lambda rid=r["id"]: self.reparar(rid))
+            b.grid(row=1 + n // 4, column=n % 4, sticky="ew", padx=(0, 6), pady=(0, 6))
+            b.bind("<Enter>", lambda _e, r=r: self.desc.config(
+                text=f"{r['nome']} ({r['tempo']}). {r['desc']}" + (" Pede reinício." if r["reboot"] else "")))
+            self.botoes_rep.append(b)
+        for c in range(4):
+            rep.columnconfigure(c, weight=1, uniform="reparos")
+
+        self.btn = ttk.Button(self.base, text="Verificar de novo", style="Grande.TButton", command=self.verificar)
+        self.btn.pack(side="right")
+        self.verificar()
+
+    def _estado_botoes(self, on: bool) -> None:
+        self.btn.config(state="normal" if on else "disabled")
+        for b in self.botoes_rep:
+            b.config(state="normal" if on and dp.is_admin() else "disabled")
+
+    def verificar(self) -> None:
+        self._estado_botoes(False)
+        self.msg.config(text="Verificando segurança, disco, memória e rede (até 1 minuto)...", foreground="")
+        self.trabalhar(lambda: self.q.put(("diag", sd.avaliar(sd.diagnostico(), ot.ambiente()))))
+
+    def evento(self, tipo, dado) -> None:
+        if tipo == "diag":
+            self.parar()
+            self._preenche(dado)
+            self._estado_botoes(True)
+        elif tipo == "rep":
+            self.parar()
+            r, (ok, rb, msg) = dado
+            self.msg.config(text=("✔ " if ok else "⚠ ") + f"{r['nome']}: {msg[:220]}", foreground=VERDE if ok else LARANJA)
+            if rb and ok:
+                _oferecer_reinicio(f"{r['nome']} pede reinício para concluir.")
+            self._estado_botoes(True)
+
+    def ao_erro(self) -> None:
+        self._estado_botoes(True)
+
+    def _preenche(self, itens: list[dict]) -> None:
+        self.tree.delete(*self.tree.get_children())
+        self.itens.clear()
+        grupos: dict[str, str] = {}
+        # o que precisa de ação primeiro: grupos e itens em ordem de gravidade
+        peso = {"PROBLEMA": 0, "ATENÇÃO": 1, "INFO": 2, "OK": 3}
+        pior = {}
+        for i in itens:
+            pior[i["grupo"]] = min(pior.get(i["grupo"], 9), peso.get(i["status"], 2))
+        itens = sorted(itens, key=lambda i: (pior[i["grupo"]], peso.get(i["status"], 2)))
+        for n, i in enumerate(itens):
+            if i["grupo"] not in grupos:
+                grupos[i["grupo"]] = self.tree.insert("", "end", text=i["grupo"], open=True, tags=("cat",))
+            iid = f"s{n}"
+            self.itens[iid] = i
+            self.tree.insert(grupos[i["grupo"]], "end", iid=iid, text=i["nome"],
+                             values=(ROT_SAUDE.get(i["status"], i["status"]), i["detalhe"]), tags=(i["status"],))
+        prob = sum(1 for i in itens if i["status"] == "PROBLEMA")
+        aten = sum(1 for i in itens if i["status"] == "ATENÇÃO")
+        if prob or aten:
+            partes = ([f"{prob} problema(s)"] if prob else []) + ([f"{aten} ponto(s) de atenção"] if aten else [])
+            self.msg.config(text=" e ".join(partes) + ". Clique em cada um para ver o que fazer.",
+                            foreground=VERMELHO if prob else LARANJA)
+        else:
+            self.msg.config(text="✔ Tudo em ordem neste PC.", foreground=VERDE)
+
+    def _mostra(self, _=None) -> None:
+        s = self.tree.selection()
+        if s and s[0] in self.itens:
+            i = self.itens[s[0]]
+            txt = f"{i['nome']}: {i['detalhe']}." + (f" {i['dica']}" if i["dica"] else "")
+            if i.get("reparo"):
+                txt += f" → Reparo sugerido: {sd.REP_ID[i['reparo']]['nome']}."
+            if i.get("ajuste"):
+                txt += f" → Ajuste: {ot.POR_ID[i['ajuste']]['nome']} (tela Escritório)."
+            self.desc.config(text=txt)
+
+    def reparar(self, rid: str) -> None:
+        r = sd.REP_ID[rid]
+        if not messagebox.askyesno(r["nome"], f"{r['desc']}\n\nTempo: {r['tempo']}." +
+                                   ("\nPode pedir para reiniciar no final." if r["reboot"] else "") + "\n\nContinuar?"):
+            return
+        self._estado_botoes(False)
+        self.msg.config(text=f"{r['nome']}... ({r['tempo']})", foreground="")
+
+        def job():
+            dp.log(f"Reparo: {r['nome']}")
+            try:
+                res = sd.executar(rid)
+            except Exception as ex:
+                res = (False, False, f"{type(ex).__name__}: {ex}")
+            dp.log("  " + res[2])
+            self.q.put(("rep", (r, res)))
+        self.trabalhar(job)

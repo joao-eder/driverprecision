@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [windows-2022, windows-2025]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       PRINTS: ${{ github.workspace }}\prints
     steps:
@@ -45,12 +45,15 @@ jobs:
       - name: Drivers (verificação real)
         if: always()
         run: python -X utf8 tests/integracao_windows.py drivers
+      - name: Saúde do PC (diagnóstico e reparos reais)
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py saude
 
       - name: O .exe compilado abre
         if: always()
         shell: pwsh
         run: |
-          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --icon assets/icone.ico --add-data "assets;assets" --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza --hidden-import driverprecision_tema driverprecision.py | Out-Null
+          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --icon assets/icone.ico --add-data "assets;assets" --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza --hidden-import driverprecision_tema --hidden-import driverprecision_saude driverprecision.py | Out-Null
           $p = Start-Process dist\DriverPrecision.exe -PassThru
           Start-Sleep 25
           $vivos = Get-Process DriverPrecision -ErrorAction SilentlyContinue

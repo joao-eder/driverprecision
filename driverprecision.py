@@ -205,6 +205,8 @@ def _dec(b: bytes | None) -> str:
     """Saída de programas do Windows: UTF-8 quando dá, senão a página do console (cp850 em PT-BR). Nunca falha."""
     if not b:
         return ""
+    if b.count(b"\x00") > len(b) // 4:  # sfc e alguns utilitários escrevem em UTF-16 quando redirecionados
+        return b.decode("utf-16-le", "replace").replace("\x00", "")
     try:
         return b.decode("utf-8")
     except UnicodeDecodeError:

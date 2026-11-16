@@ -304,11 +304,15 @@ def run_gui() -> None:
     jan = tema.Janela(root, dp.VERSION, dp.is_admin())
     pg_drv = jan.pagina("drivers", "Drivers", "Atualizar pelo fabricante")
     pg_jog = jan.pagina("jogos", "Jogos", "DirectX, Visual C++ e cia.")
-    from driverprecision_abas import AbaJogos, AbaOtimizacao, ot
-    pg_oti = jan.pagina("otimiza", "Otimização", f"{len(ot.AJUSTES)} ajustes para jogar")
+    from driverprecision_abas import AbaJogos, AbaOtimizacao, AbaSaude, ot
+    pg_oti = jan.pagina("otimiza", "Otimização", f"{len(ot.do_perfil('jogos'))} ajustes para jogar")
+    pg_esc = jan.pagina("escritorio", "Escritório", "Abas, planilhas e rede")
+    pg_sau = jan.pagina("saude", "Saúde do PC", "Segurança e reparos")
     App(root, pg_drv)
     AbaJogos(root, pg_jog)
-    AbaOtimizacao(root, pg_oti)
+    AbaOtimizacao(root, pg_oti, "jogos")
+    AbaOtimizacao(root, pg_esc, "escritorio")
+    AbaSaude(root, pg_sau)
     jan.mostrar("drivers")
     root.mainloop()
 

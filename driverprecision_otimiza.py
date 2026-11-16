@@ -1,5 +1,5 @@
 """
-Otimização avançada para jogos.
+Motor dos ajustes do Windows: telas "Otimização" (jogos) e "Escritório".
 
 Regras:
 - Cada ajuste é um item de AJUSTES (dados), com risco, se pede reinício e explicação em português simples.
@@ -8,7 +8,12 @@ Regras:
 - Aplicar duas vezes não sobrescreve o backup original.
 
 Para adicionar um ajuste: acrescente um dict em AJUSTES. Ajustes só de registro usam a lista "reg";
-os que precisam de comando (powercfg, bcdedit) ou de chaves descobertas na hora usam "tipo".
+os que precisam de comando (powercfg, bcdedit, PowerShell) ou de chaves descobertas na hora usam "tipo".
+Campos opcionais: "perfis" (telas onde aparece; padrão só jogos), "aplica_se" (função: o PC tem o programa?),
+"recomendado" (False = fora do botão Recomendados), "depois" (comandos após aplicar/desfazer, ex.: iniciar serviço).
+
+PC de empresa (domínio, Entra ID/Azure AD ou Intune): o que a TI costuma controlar (políticas, serviços,
+segurança) fica bloqueado, para o programa não brigar com a configuração da empresa.
 """
 from __future__ import annotations
 
@@ -21,9 +26,9 @@ import winreg
 import driverprecision as dp
 
 BACKUP = dp.BASE / "otimizacao_backup.json"
-DW, SZ = "DWORD", "SZ"
+DW, SZ, MSZ = "DWORD", "SZ", "MULTI_SZ"
 HIVES = {"HKCU": winreg.HKEY_CURRENT_USER, "HKLM": winreg.HKEY_LOCAL_MACHINE}
-TIPOS = {DW: winreg.REG_DWORD, SZ: winreg.REG_SZ}
+TIPOS = {DW: winreg.REG_DWORD, SZ: winreg.REG_SZ, MSZ: winreg.REG_MULTI_SZ, "EXPAND_SZ": winreg.REG_EXPAND_SZ}
 TIPOS_INV = {v: k for k, v in TIPOS.items()}
 
 
@@ -94,8 +99,25 @@ def _interfaces_ativas() -> list[str]:
     return out
 
 
+NET_CLASS = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}"
+
+
+def _placas_rede_ativas() -> list[str]:
+    """Chaves de driver das placas de rede físicas que estão com IP agora."""
+    guids = {p.rsplit("\\", 1)[-1].lower() for p in _interfaces_ativas()}
+    out = []
+    for sk in REG.subkeys("HKLM", NET_CLASS):
+        p = NET_CLASS + "\\" + sk
+        inst = str(REG.get("HKLM", p, "NetCfgInstanceId")[2] or "").lower()
+        if inst and inst in guids:
+            out.append(p)
+    return out
+
+
 def regs_do_ajuste(a: dict) -> list[tuple]:
     t = a.get("tipo")
+    if t == "nic_pnp":  # 24 = desmarca "O computador pode desligar este dispositivo para economizar energia"
+        return [("HKLM", p, "PnPCapabilities", DW, 24) for p in _placas_rede_ativas()]
     if t == "msi_gpu":
         return [("HKLM", rf"SYSTEM\CurrentControlSet\Enum\{g}\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties",
                  "MSISupported", DW, 1) for g in _gpus()]
@@ -180,6 +202,114 @@ def _bcd_restaura(nome: str, valor: str | None) -> None:
         _cmd(["bcdedit", "/set", nome, "yes" if valor.lower() in ("yes", "sim", "on", "true") else "no"])
 
 
+# --------------------------------------------------------------------------- ajustes via PowerShell
+
+def _ps_ler(a: dict) -> str | None:
+    """Valor atual de um ajuste "ps" como texto; None se o recurso não existe neste PC."""
+    try:
+        out = dp.powershell("$ErrorActionPreference='Stop';" + a["ps"]["ler"], 180).strip()
+    except Exception:
+        return None
+    return out.splitlines()[-1].strip() if out else None
+
+
+def _ps_ativo(a: dict, v: str | None) -> bool:
+    ok = a["ps"].get("ok") or [a["ps"]["alvo"]]
+    return v is not None and v.lower() in {x.lower() for x in ok}
+
+
+def _ps_gravar(a: dict, v: str) -> None:
+    script = "$ErrorActionPreference='Stop';" + a["ps"]["gravar"].replace("{v}", v)
+    try:
+        dp.powershell(script, 900)
+    except Exception as ex:
+        raise RuntimeError(str(ex).split(" At line:")[0][:300]) from None
+
+
+def _depois(a: dict) -> None:
+    for c in a.get("depois", []):
+        try:
+            _cmd(c)
+        except Exception:
+            pass
+
+
+# --------------------------------------------------------------------------- PC de empresa
+
+_AMBIENTE: dict | None = None
+PS_AMBIENTE = r"""
+$cs=Get-CimInstance Win32_ComputerSystem
+$ds=(& "$env:SystemRoot\System32\dsregcmd.exe" /status 2>$null) -join "`n"
+$mdm=@(Get-ChildItem HKLM:\SOFTWARE\Microsoft\Enrollments -ErrorAction SilentlyContinue | Where-Object {
+  (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).ProviderID -eq 'MS DM Server' }).Count -gt 0
+[pscustomobject]@{dominio=[bool]$cs.PartOfDomain; nome_dominio=[string]$cs.Domain
+  entra=[bool]($ds -match 'AzureAdJoined\s*:\s*YES'); mdm=[bool]$mdm} | ConvertTo-Json -Compress
+"""
+
+
+def ambiente() -> dict:
+    """{dominio, entra, mdm, gerenciado, descricao}. Lido uma vez por execução."""
+    global _AMBIENTE
+    if _AMBIENTE is None:
+        try:
+            d = json.loads(dp.powershell(PS_AMBIENTE, 60))
+        except Exception:
+            d = {}
+        d = {"dominio": bool(d.get("dominio")), "entra": bool(d.get("entra")), "mdm": bool(d.get("mdm")),
+             "nome_dominio": d.get("nome_dominio") or ""}
+        partes = ([f"domínio {d['nome_dominio']}"] if d["dominio"] else []) + (["Entra ID (Azure AD)"] if d["entra"] else []) \
+            + (["Intune/MDM"] if d["mdm"] else [])
+        d["gerenciado"] = bool(partes)
+        d["descricao"] = ", ".join(partes)
+        _AMBIENTE = d
+    return _AMBIENTE
+
+
+def controlado_pela_ti(a: dict) -> bool:
+    """Áreas que a TI de uma empresa costuma gerenciar: políticas, serviços e segurança."""
+    if a.get("ti") is not None:
+        return bool(a["ti"])
+    if a.get("tipo") in ("ps", "bcd", "msi_gpu", "plano", "powercfg", "hiber"):  # segurança, boot e energia
+        return True
+    return any("\\policies\\" in p.lower() or "\\services\\" in p.lower() for _, p, *_ in a.get("reg", []))
+
+
+def bloqueado(a: dict) -> str:
+    """Motivo pelo qual o ajuste não pode ser aplicado neste PC ('' = pode)."""
+    if a.get("aplica_se") and not a["aplica_se"]():
+        return a.get("requisito", "não se aplica a este PC")
+    amb = ambiente()
+    if amb["gerenciado"] and controlado_pela_ti(a):
+        return f"PC gerenciado pela empresa ({amb['descricao']}): a TI controla esta configuração"
+    return ""
+
+
+# --------------------------------------------------------------------------- programas instalados
+
+def _tem_chave(*chaves: tuple[str, str]) -> bool:
+    return any(REG.subkeys(h, p) or REG.get(h, p, "")[0] for h, p in chaves)
+
+
+def tem_chrome() -> bool:
+    ap = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+    return _tem_chave(("HKLM", ap), ("HKCU", ap))
+
+
+def tem_firefox() -> bool:
+    ap = r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\firefox.exe"
+    return _tem_chave(("HKLM", ap), ("HKCU", ap), ("HKLM", r"SOFTWARE\Mozilla\Mozilla Firefox"))
+
+
+def tem_office() -> bool:
+    return _tem_chave(("HKLM", r"SOFTWARE\Microsoft\Office\ClickToRun\Configuration"),
+                      ("HKLM", r"SOFTWARE\Microsoft\Office\16.0\Excel\InstallRoot"),
+                      ("HKCU", r"Software\Microsoft\Office\16.0\Excel"))
+
+
+def tem_libreoffice() -> bool:
+    return _tem_chave(("HKLM", r"SOFTWARE\LibreOffice"), ("HKLM", r"SOFTWARE\WOW6432Node\LibreOffice"))
+
+
 # --------------------------------------------------------------------------- catálogo de ajustes
 
 SUB_PROC = "54533251-82be-4824-96c1-47b60b740d00"
@@ -253,40 +383,40 @@ AJUSTES: list[dict] = [
      "reg": [("HKCU", r"Control Panel\Mouse", "MouseSpeed", SZ, "0"), ("HKCU", r"Control Panel\Mouse", "MouseThreshold1", SZ, "0"),
              ("HKCU", r"Control Panel\Mouse", "MouseThreshold2", SZ, "0")],
      "desc": "Mira 1:1: o cursor anda sempre a mesma distância para o mesmo movimento. Vale ao sair e entrar na conta."},
-    {"id": "usb_suspend", "cat": "Mouse e teclado", "nome": "Não suspender portas USB", "risco": "baixo",
+    {"id": "usb_suspend", "perfis": ("jogos", "escritorio"), "cat": "Mouse e teclado", "nome": "Não suspender portas USB", "risco": "baixo",
      "tipo": "powercfg", "pc": (SUB_USB, USB_SUSPEND, 0, 0),
      "desc": "Evita que mouse, teclado ou controle 'durmam' e percam o primeiro clique."},
     # ---- Windows
-    {"id": "bg_apps", "cat": "Windows", "nome": "Bloquear apps em segundo plano", "risco": "baixo",
+    {"id": "bg_apps", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Bloquear apps em segundo plano", "risco": "baixo",
      "reg": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications", "GlobalUserDisabled", DW, 1),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Search", "BackgroundAppGlobalToggle", DW, 0)],
      "desc": "Apps da Loja param de rodar escondidos. Notificações desses apps podem atrasar."},
-    {"id": "visual", "cat": "Windows", "nome": "Efeitos visuais no mínimo", "risco": "baixo",
+    {"id": "visual", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Efeitos visuais no mínimo", "risco": "baixo",
      "reg": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects", "VisualFXSetting", DW, 2),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", DW, 0),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarAnimations", DW, 0),
              ("HKCU", r"Control Panel\Desktop", "MenuShowDelay", SZ, "0")],
      "desc": "Tira transparências e animações do Windows. Ajuda em PC fraco."},
-    {"id": "fast_startup", "cat": "Windows", "nome": "Desligar Inicialização rápida", "risco": "baixo", "reboot": True,
+    {"id": "fast_startup", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Desligar Inicialização rápida", "risco": "baixo", "reboot": True,
      "reg": [("HKLM", r"SYSTEM\CurrentControlSet\Control\Session Manager\Power", "HiberbootEnabled", DW, 0)],
      "desc": "Com ela ligada, 'Desligar' na verdade hiberna o núcleo do Windows e os drivers nunca reiniciam do zero. "
              "Desligar resolve driver travado em estado ruim. O boot pode ficar alguns segundos mais lento."},
-    {"id": "telemetria", "cat": "Windows", "nome": "Desligar telemetria do Windows", "risco": "baixo", "reboot": True,
+    {"id": "telemetria", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Desligar telemetria do Windows", "risco": "baixo", "reboot": True,
      "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", DW, 0),
              ("HKLM", r"SYSTEM\CurrentControlSet\Services\DiagTrack", "Start", DW, 4)],
      "desc": "Para o serviço que envia dados de uso para a Microsoft o tempo todo. Menos processo, disco e rede em segundo plano. "
              "No Windows Home/Pro fica no nível mínimo permitido."},
-    {"id": "anuncios", "cat": "Windows", "nome": "Desligar anúncios, dicas e apps sugeridos", "risco": "baixo",
+    {"id": "anuncios", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Desligar anúncios, dicas e apps sugeridos", "risco": "baixo",
      "reg": [("HKCU", CDM, "SilentInstalledAppsEnabled", DW, 0), ("HKCU", CDM, "SystemPaneSuggestionsEnabled", DW, 0),
              ("HKCU", CDM, "SoftLandingEnabled", DW, 0), ("HKCU", CDM, "SubscribedContent-338388Enabled", DW, 0),
              ("HKCU", CDM, "SubscribedContent-338389Enabled", DW, 0), ("HKCU", CDM, "SubscribedContent-310093Enabled", DW, 0),
              ("HKCU", CDM, "SubscribedContent-353694Enabled", DW, 0), ("HKCU", CDM, "SubscribedContent-353696Enabled", DW, 0)],
      "desc": "Impede o Windows de instalar apps 'sugeridos' sozinho e tira dicas e propagandas do Menu Iniciar e das Configurações."},
-    {"id": "bing", "cat": "Windows", "nome": "Desligar busca na web (Bing) no Menu Iniciar", "risco": "baixo", "reboot": True,
+    {"id": "bing", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Desligar busca na web (Bing) no Menu Iniciar", "risco": "baixo", "reboot": True,
      "reg": [("HKCU", r"Software\Policies\Microsoft\Windows\Explorer", "DisableSearchBoxSuggestions", DW, 1),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Search", "BingSearchEnabled", DW, 0)],
      "desc": "A pesquisa do Menu Iniciar procura só no PC, sem consultar a internet a cada letra. Fica mais rápida."},
-    {"id": "startup_delay", "cat": "Windows", "nome": "Tirar o atraso dos programas de inicialização", "risco": "baixo",
+    {"id": "startup_delay", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Tirar o atraso dos programas de inicialização", "risco": "baixo",
      "reg": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize", "StartupDelayInMSec", DW, 0),
              ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize", "WaitForIdleState", DW, 0)],
      "desc": "O Windows espera alguns segundos antes de abrir os programas da inicialização. Isso tira a espera."},
@@ -294,20 +424,20 @@ AJUSTES: list[dict] = [
      "desc": "Apaga o arquivo hiberfil.sys e libera vários GB no disco C:. Some a opção 'Hibernar' e a Inicialização rápida "
              "deixa de funcionar. Suspender continua normal."},
     # ---- Disco
-    {"id": "trim", "cat": "Disco", "nome": "Garantir TRIM do SSD ligado", "risco": "baixo",
+    {"id": "trim", "perfis": ("jogos", "escritorio"), "cat": "Disco", "nome": "Garantir TRIM do SSD ligado", "risco": "baixo",
      "reg": [("HKLM", FS, "DisableDeleteNotification", DW, 0)],
      "desc": "O TRIM avisa o SSD quais blocos foram apagados, mantendo a velocidade de gravação com o tempo. "
              "Normalmente já está ligado; aqui só garante."},
-    {"id": "last_access", "cat": "Disco", "nome": "Desligar registro de 'último acesso' dos arquivos", "risco": "baixo",
+    {"id": "last_access", "perfis": ("jogos", "escritorio"), "cat": "Disco", "nome": "Desligar registro de 'último acesso' dos arquivos", "risco": "baixo",
      "reboot": True, "reg": [("HKLM", FS, "NtfsDisableLastAccessUpdate", DW, 0x80000001)],
      "desc": "O Windows grava a data em que cada arquivo foi aberto. Desligar evita milhares de gravações pequenas no disco "
              "(ao carregar jogos, por exemplo)."},
     # ---- Rede (energia)
-    {"id": "delivery_p2p", "cat": "Rede", "nome": "Não compartilhar atualizações com outros PCs", "risco": "baixo",
+    {"id": "delivery_p2p", "perfis": ("jogos", "escritorio"), "cat": "Rede", "nome": "Não compartilhar atualizações com outros PCs", "risco": "baixo",
      "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", DW, 0)],
      "desc": "Por padrão o Windows usa sua internet para enviar atualizações a outros PCs. Isso desliga o envio "
              "(as atualizações continuam chegando normalmente)."},
-    {"id": "wifi_power", "cat": "Rede", "nome": "Desligar economia de energia do Wi-Fi", "risco": "médio",
+    {"id": "wifi_power", "perfis": ("jogos", "escritorio"), "cat": "Rede", "nome": "Desligar economia de energia do Wi-Fi", "risco": "médio",
      "tipo": "powercfg", "pc": (SUB_WIFI, WIFI_POWER, 0, 0),
      "desc": "A placa Wi-Fi para de 'cochilar' entre pacotes. Ping mais estável em notebook; gasta um pouco mais de bateria."},
     {"id": "pcie_aspm", "cat": "Placa de vídeo", "nome": "Desligar economia de energia do PCIe (ASPM)", "risco": "médio",
@@ -326,6 +456,118 @@ AJUSTES: list[dict] = [
      "desc": "Ganho de 5 a 15% de FPS em muitos PCs (a própria Microsoft sugere isso para jogos). "
              "Em troca, o Windows fica menos protegido contra drivers maliciosos. Alguns jogos com anti-cheat exigem que fique LIGADO."},
 ]
+
+# ---------------------------------------------------------------- Escritório
+MEM = r"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
+CHROME = r"SOFTWARE\Policies\Google\Chrome"
+FIREFOX = r"SOFTWARE\Policies\Mozilla\Firefox"
+OFF_GFX = r"Software\Microsoft\Office\16.0\Common\Graphics"
+SVC = r"SYSTEM\CurrentControlSet\Services"
+ESC = ("escritorio",)
+
+AJUSTES += [
+    # ---- Memória e muitas abas
+    {"id": "memcomp", "perfis": ESC, "cat": "Memória e muitas abas", "nome": "Compressão de memória ligada", "risco": "baixo",
+     "reboot": True, "tipo": "ps", "ps": {"ler": "(Get-MMAgent).MemoryCompression", "alvo": "True",
+                                          "gravar": "if('{v}' -eq 'True'){Enable-MMAgent -MemoryCompression}else{Disable-MMAgent -MemoryCompression}"},
+     "desc": "O Windows compacta na própria RAM o que está parado (abas, planilhas abertas) em vez de jogar no disco. "
+             "Com dezenas de abas, o PC demora muito mais para ficar lento. Vem ligada; muitos 'otimizadores' desligam."},
+    {"id": "pagefile", "perfis": ESC, "cat": "Memória e muitas abas", "nome": "Arquivo de paginação gerenciado pelo Windows",
+     "risco": "baixo", "reboot": True, "tipo": "ps", "guardar": [("HKLM", MEM, "PagingFiles")],
+     "ps": {"ler": "(Get-CimInstance Win32_ComputerSystem).AutomaticManagedPagefile", "alvo": "True",
+            "gravar": "$c=Get-CimInstance Win32_ComputerSystem; Set-CimInstance -InputObject $c -Property @{AutomaticManagedPagefile=[bool]::Parse('{v}')}"},
+     "desc": "Paginação desligada ou pequena demais faz o Chrome mostrar 'Sem memória' e o Excel fechar com planilhas grandes. "
+             "Deixa o Windows ajustar o tamanho sozinho, que é o recomendado pela Microsoft."},
+    {"id": "sysmain", "perfis": ESC, "cat": "Memória e muitas abas", "nome": "SysMain (pré-carregamento) ligado", "risco": "baixo",
+     "reg": [("HKLM", SVC + r"\SysMain", "Start", DW, 2)], "depois": [["sc.exe", "start", "SysMain"]],
+     "desc": "Serviço do Windows que deixa pré-carregados os programas que você mais usa (Excel, navegador). "
+             "Vem ligado; 'otimizadores' costumam desligar e o Excel passa a abrir mais devagar."},
+    # ---- Navegadores
+    {"id": "chrome_memoria", "perfis": ESC, "cat": "Navegadores", "nome": "Chrome: Economia de memória ligada", "risco": "baixo",
+     "aplica_se": lambda: tem_chrome(), "requisito": "Google Chrome não instalado",
+     "reg": [("HKLM", CHROME, "HighEfficiencyModeEnabled", DW, 1), ("HKLM", CHROME, "MemorySaverModeSavings", DW, 1)],
+     "desc": "Abas paradas há algum tempo saem da memória e recarregam quando você clica nelas (nível equilibrado). "
+             "Com muitas abas, o PC todo fica mais leve. Enquanto ativo, a opção fica travada nas configurações do Chrome; "
+             "Desfazer devolve o controle. Vale ao reabrir o Chrome."},
+    {"id": "chrome_fundo", "perfis": ESC, "cat": "Navegadores", "nome": "Chrome: fechar de verdade ao fechar a janela", "risco": "baixo",
+     "aplica_se": lambda: tem_chrome(), "requisito": "Google Chrome não instalado",
+     "reg": [("HKLM", CHROME, "BackgroundModeEnabled", DW, 0)],
+     "desc": "Por padrão o Chrome continua rodando escondido depois de fechado (extensões e apps). Isso libera essa memória."},
+    {"id": "firefox_fundo", "perfis": ESC, "cat": "Navegadores", "nome": "Firefox: sem tarefas em segundo plano", "risco": "baixo",
+     "aplica_se": lambda: tem_firefox(), "requisito": "Firefox não instalado",
+     "reg": [("HKLM", FIREFOX, "DisableDefaultBrowserAgent", DW, 1), ("HKLM", FIREFOX, "DisableTelemetry", DW, 1)],
+     "desc": "Desliga o agente que roda todo dia pelo Agendador do Windows e o envio de telemetria. "
+             "O Firefox já tira da memória as abas paradas quando a RAM aperta; isso vem ligado de fábrica."},
+    # ---- Excel e Office
+    {"id": "office_animacoes", "perfis": ESC, "cat": "Excel e Office", "nome": "Office sem animações", "risco": "baixo",
+     "aplica_se": lambda: tem_office(), "requisito": "Microsoft Office/365 não instalado",
+     "reg": [("HKCU", OFF_GFX, "DisableAnimations", DW, 1)],
+     "desc": "Tira as animações de células, menus e rolagem do Excel, Word e Outlook. Em planilhas grandes, "
+             "a navegação fica mais rápida e sem 'arrasto'. Vale ao reabrir o Office."},
+    {"id": "office_gpu", "perfis": ESC, "cat": "Excel e Office", "nome": "Office sem aceleração gráfica (só se tiver problema)",
+     "risco": "médio", "recomendado": False,
+     "aplica_se": lambda: tem_office(), "requisito": "Microsoft Office/365 não instalado",
+     "reg": [("HKCU", OFF_GFX, "DisableHardwareAcceleration", DW, 1)],
+     "desc": "Use só se o Excel ou o Word piscam, ficam com áreas pretas ou travam ao rolar: é sinal de problema no driver de vídeo. "
+             "Em PC sem esses sintomas, deixe como está (a aceleração ajuda)."},
+    {"id": "libreoffice_cache", "perfis": ESC, "cat": "Excel e Office", "nome": "LibreOffice: cache de imagens maior", "risco": "baixo",
+     "aplica_se": lambda: tem_libreoffice(), "requisito": "LibreOffice não instalado",
+     "reg": [("HKCU", r"Software\Policies\LibreOffice\org.openoffice.Office.Common\Cache\GraphicManager\GraphicMemoryLimit",
+              "Value", SZ, "600000000")],
+     "desc": "Dobra a memória que o LibreOffice usa para imagens e gráficos (300 MB → 600 MB). Documentos e planilhas "
+             "com muitas imagens ou gráficos rolam sem recarregar. O cálculo em vários núcleos já vem ligado."},
+    # ---- Rede
+    {"id": "rede_descoberta", "perfis": ESC, "cat": "Rede", "nome": "Outros PCs e pastas aparecem em 'Rede'", "risco": "baixo",
+     "reg": [("HKLM", SVC + r"\fdPHost", "Start", DW, 2), ("HKLM", SVC + r"\FDResPub", "Start", DW, 2),
+             ("HKLM", SVC + r"\FDResPub", "DelayedAutostart", DW, 1)],
+     "depois": [["sc.exe", "start", "fdPHost"], ["sc.exe", "start", "FDResPub"]],
+     "desc": "Liga os serviços de descoberta que o Windows deixa parados: este PC passa a aparecer para os outros e vice-versa. "
+             "Só funciona com a rede marcada como Particular (veja Saúde do PC)."},
+    {"id": "unidades_admin", "perfis": ESC, "cat": "Rede", "nome": "Unidades de rede visíveis em programas de administrador",
+     "risco": "baixo", "reboot": True,
+     "reg": [("HKLM", r"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "EnableLinkedConnections", DW, 1)],
+     "desc": "Corrige o caso clássico: a unidade mapeada (ex.: Z:) aparece no Explorador, mas some na hora de abrir ou salvar "
+             "num programa que roda como administrador (sistemas de gestão, instaladores)."},
+    {"id": "impressora_padrao", "perfis": ESC, "cat": "Rede", "nome": "Windows não troca a impressora padrão sozinho",
+     "risco": "baixo", "reg": [("HKCU", r"Software\Microsoft\Windows NT\CurrentVersion\Windows", "LegacyDefaultPrinterMode", DW, 1)],
+     "desc": "Por padrão o Windows muda a impressora padrão para a última usada e a impressão vai parar na impressora errada. "
+             "Isso fixa a que você escolher."},
+    {"id": "nic_energia", "perfis": ESC, "cat": "Rede", "nome": "Placa de rede não desliga para economizar energia",
+     "risco": "médio", "reboot": True, "tipo": "nic_pnp",
+     "desc": "O Windows pode desligar a placa de rede/Wi-Fi para poupar energia, derrubando VPN, Área de Trabalho Remota "
+             "e arquivos abertos da rede. Aplica nas placas conectadas agora. Gasta um pouco mais de bateria."},
+    {"id": "vpn_dns", "perfis": ESC, "cat": "Rede", "nome": "VPN: nomes da rede da empresa resolvem pela VPN", "risco": "médio",
+     "recomendado": False, "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows NT\DNSClient", "DisableSmartNameResolution", DW, 1)],
+     "desc": "Com VPN ligada, o Windows pergunta os nomes a todas as redes ao mesmo tempo e às vezes usa a resposta errada "
+             "('servidor não encontrado', sistema interno que não abre). Isso faz ele seguir a ordem das conexões. Só para quem usa VPN."},
+    # ---- Segurança
+    {"id": "extensoes", "perfis": ESC, "cat": "Segurança", "nome": "Mostrar a extensão dos arquivos", "risco": "baixo",
+     "reg": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "HideFileExt", DW, 0)],
+     "desc": "Mostra 'boleto.pdf.exe' em vez de 'boleto.pdf': o golpe mais comum por e-mail fica visível. Vale nas janelas novas do Explorador."},
+    {"id": "pua", "perfis": ESC, "cat": "Segurança", "nome": "Defender bloqueia programas indesejados (PUA)", "risco": "baixo",
+     "tipo": "ps", "ps": {"ler": "[int](Get-MpPreference).PUAProtection", "alvo": "1", "gravar": "Set-MpPreference -PUAProtection {v}"},
+     "desc": "Bloqueia instaladores com 'brindes' (barras de navegador, mineradores, adwares) que vêm junto de programas gratuitos. "
+             "Não se aplica se o PC usa outro antivírus."},
+    {"id": "smb1_off", "perfis": ESC, "cat": "Segurança", "nome": "Desligar SMB1 (protocolo de rede antigo)", "risco": "médio",
+     "reboot": True, "tipo": "ps",
+     "ps": {"ler": "[string](Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol).State", "alvo": "Disabled",
+            "ok": ["Disabled", "DisabledWithPayloadRemoved"],
+            "gravar": "if('{v}' -eq 'Enabled'){Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -All -NoRestart | Out-Null}"
+                      "else{Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart | Out-Null}"},
+     "desc": "Porta usada pelo WannaCry. Atenção: NAS e impressoras multifuncionais muito antigas (escanear para pasta) podem "
+             "precisar dele. Se pararem de funcionar, use Desfazer."},
+    {"id": "restauracao", "perfis": ESC, "cat": "Segurança", "nome": "Proteção do sistema (pontos de restauração) ligada",
+     "risco": "baixo", "tipo": "ps",
+     "ps": {"ler": "[int](Get-CimInstance -Namespace root/default -ClassName SystemRestoreConfig).RPSessionInterval", "alvo": "1",
+            "gravar": "if('{v}' -eq '1'){Enable-ComputerRestore -Drive \"$env:SystemDrive\\\"}"},
+     "nao_desfaz": "a Proteção do sistema continua ligada (desligar apagaria os pontos de restauração; se quiser, desligue em "
+                   "Painel de Controle > Sistema > Proteção do sistema)",
+     "desc": "Sem ela, não existe 'voltar no tempo' depois de uma atualização ou instalação que deu errado. "
+             "Usa até alguns GB do disco C:."},
+]
+
+ORDEM_CATS = {"escritorio": ["Memória e muitas abas", "Navegadores", "Excel e Office", "Rede", "Segurança", "Windows", "Disco",
+                             "Mouse e teclado"]}
 POR_ID = {a["id"]: a for a in AJUSTES}
 
 
@@ -361,6 +603,11 @@ def estado(a: dict) -> str:
         return "ATIVO" if v and v.lower() in ("yes", "sim") else "PADRÃO"
     if t == "hiber":
         return "ATIVO" if REG.get("HKLM", PWR, "HibernateEnabled")[2] == 0 else "PADRÃO"
+    if a.get("aplica_se") and not a["aplica_se"]():
+        return "N/A"
+    if t == "ps":
+        v = _ps_ler(a)
+        return "N/A" if v is None else ("ATIVO" if _ps_ativo(a, v) else "PADRÃO")
     regs = regs_do_ajuste(a)
     if not regs:
         return "N/A"
@@ -370,10 +617,24 @@ def estado(a: dict) -> str:
 
 def aplicar(aid: str) -> str:
     a = POR_ID[aid]
+    motivo = bloqueado(a)
+    if motivo:
+        raise RuntimeError(motivo)
     b = _ler_backup()
     orig = b.get(aid)  # já aplicado antes: mantém o original da primeira vez
     t = a.get("tipo")
-    if t == "plano":
+    if t == "ps":
+        v = _ps_ler(a)
+        if v is None:
+            raise RuntimeError("recurso não disponível neste Windows")
+        if orig is None:
+            orig = {"ps": v, "reg": [[h, p, n, *REG.get(h, p, n)] for h, p, n in a.get("guardar", [])]}
+        if not _ps_ativo(a, v):
+            _ps_gravar(a, a["ps"]["alvo"])
+            if not _ps_ativo(a, _ps_ler(a)):
+                raise RuntimeError("o Windows não aceitou a alteração")
+        msg = "aplicado"
+    elif t == "plano":
         if orig is None:
             orig = {"plano": plano_ativo()}
         g = _plano_maximo()
@@ -423,6 +684,7 @@ def aplicar(aid: str) -> str:
         for h, p, n, tp, v in regs:
             REG.set(h, p, n, tp, v)
         msg = f"{len(regs)} valor(es) do registro alterados"
+    _depois(a)
     b[aid] = orig
     _salvar_backup(b)
     _marca_reinicio(a)
@@ -435,6 +697,12 @@ def desfazer(aid: str) -> str:
     orig = b.get(aid)
     if orig is None:
         return "nada a desfazer (não foi aplicado por este programa)"
+    aviso = ""
+    if "ps" in orig:
+        if a.get("nao_desfaz"):
+            aviso = " - " + a["nao_desfaz"]
+        elif not _ps_ativo(a, orig["ps"]) or orig["ps"].lower() != a["ps"]["alvo"].lower():
+            _ps_gravar(a, orig["ps"])
     if "plano" in orig and orig["plano"]:
         _cmd(["powercfg", "/setactive", orig["plano"]])
     if "bcd" in orig:
@@ -461,10 +729,12 @@ def desfazer(aid: str) -> str:
             REG.delete(h, p, n)
     if orig.get("recarregar_plano"):
         _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
+    _depois(a)
     del b[aid]
     _salvar_backup(b)
     _marca_reinicio(a)
-    return "restaurado ao valor original" + (" - reinicie para valer" if a.get("reboot") else "")
+    return ("restaurado ao valor original" if not aviso else "removido da lista de aplicados") + aviso + \
+        (" - reinicie para valer" if a.get("reboot") else "")
 
 
 # --------------------------------------------------------------------------- reinício pendente
@@ -512,15 +782,30 @@ def aplicados() -> list[str]:
     return list(_ler_backup().keys())
 
 
-def listar() -> list[dict]:
+def do_perfil(perfil: str | None) -> list[dict]:
+    """Ajustes de uma tela, na ordem das categorias dela."""
+    if perfil is None:
+        return list(AJUSTES)
+    lista = [a for a in AJUSTES if perfil in a.get("perfis", ("jogos",))]
+    ordem = ORDEM_CATS.get(perfil, [])
+    return sorted(lista, key=lambda a: ordem.index(a["cat"]) if a["cat"] in ordem else len(ordem))
+
+
+def listar(perfil: str | None = None) -> list[dict]:
     out = []
     pend = aguardando_reinicio()
-    for a in AJUSTES:
+    nossos = aplicados()
+    for a in do_perfil(perfil):
         try:
             st = estado(a)
         except Exception:
             st = "N/A"
+        try:
+            bl = bloqueado(a)
+        except Exception:
+            bl = ""
         out.append({"id": a["id"], "nome": a["nome"], "cat": a["cat"], "risco": a["risco"], "estado": st,
                     "desc": a["desc"], "reboot": a.get("reboot", False), "seguranca": a.get("seguranca", False),
-                    "nosso": a["id"] in aplicados(), "reiniciar": a["id"] in pend})
+                    "nosso": a["id"] in nossos, "reiniciar": a["id"] in pend, "bloqueado": bl,
+                    "recomendado": a.get("recomendado", True)})
     return out

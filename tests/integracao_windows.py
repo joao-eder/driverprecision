@@ -44,6 +44,8 @@ def _foto(ot, a) -> dict:
         return {"bcd": [ot._bcd_get("disabledynamictick"), ot._bcd_get("useplatformclock")]}
     if t == "hiber":
         return {"hiber": ot.REG.get("HKLM", ot.PWR, "HibernateEnabled")[2]}
+    if t == "ps":
+        return {"ps": ot._ps_ler(a), "guardar": [ot.REG.get(h, p, n) for h, p, n in a.get("guardar", [])]}
     return {"reg": [ot.REG.get(h, p, n) for h, p, n, _, _ in ot.regs_do_ajuste(a)]}
 
 
@@ -51,7 +53,8 @@ def t_otimiza() -> None:
     titulo("OTIMIZAÇÃO: aplicar -> conferir -> desfazer -> conferir que voltou ao original")
     import driverprecision_otimiza as ot
     ot.BACKUP = Path(tempfile.mkdtemp()) / "bk.json"
-    print("  plano ativo:", ot.plano_ativo(), "| BitLocker:", ot.bitlocker_ativo())
+    print("  plano ativo:", ot.plano_ativo(), "| BitLocker:", ot.bitlocker_ativo(), "| ambiente:", ot.ambiente())
+    print("  Chrome:", ot.tem_chrome(), "| Firefox:", ot.tem_firefox(), "| Office:", ot.tem_office(), "| LibreOffice:", ot.tem_libreoffice())
     for linha in ot.listar():
         print(f"    estado inicial  {linha['id']:<14} {linha['estado']}")
     # ambientes onde o ajuste legitimamente não se aplica (VM sem GPU PCI, sem Wi-Fi...)
@@ -61,6 +64,9 @@ def t_otimiza() -> None:
         try:
             antes = _foto(ot, a)
             est0 = ot.estado(a)
+            if est0 == "N/A" or ot.bloqueado(a):
+                aviso(f"{aid}: não se aplica a esta máquina ({ot.bloqueado(a) or 'recurso ausente'})")
+                continue
             try:
                 msg = ot.aplicar(aid)
             except RuntimeError as ex:
@@ -74,7 +80,9 @@ def t_otimiza() -> None:
             ot.aplicar(aid)  # segunda vez não pode estragar o backup
             ot.desfazer(aid)
             depois = _foto(ot, a)
-            if aid == "hibernacao" and antes["hiber"] is None:
+            if a.get("nao_desfaz") and depois != antes:
+                ok(f"{aid:<14} {est0} -> {est1} -> mantido de propósito ({a['nao_desfaz'][:60]}...)")
+            elif aid == "hibernacao" and antes["hiber"] is None:
                 aviso(f"hibernação: esta máquina não tem hibernação configurada (antes={antes}, depois={depois})")
             elif depois != antes:
                 falha(f"{aid}: desfazer NÃO restaurou. antes={antes} depois={depois}")
@@ -94,7 +102,8 @@ def t_otimiza() -> None:
             pass
     for aid in ot.aplicados():
         ot.desfazer(aid)
-    dif = [a["id"] for a in ot.AJUSTES if _foto(ot, a) != antes[a["id"]] and not (a["id"] == "hibernacao" and antes["hibernacao"]["hiber"] is None)]
+    dif = [a["id"] for a in ot.AJUSTES if _foto(ot, a) != antes[a["id"]] and not a.get("nao_desfaz")
+           and not (a["id"] == "hibernacao" and antes["hibernacao"]["hiber"] is None)]
     (falha if dif else ok)(f"aplicar {len(aplic)} juntos + desfazer tudo: " + (f"NÃO restaurou {dif}" if dif else "sistema idêntico ao original"))
 
 
@@ -260,7 +269,7 @@ def t_gui() -> None:
     from tkinter import font as tkfont
     import driverprecision_tema as tema
     import driverprecision_gui as g
-    from driverprecision_abas import AbaJogos, AbaOtimizacao
+    from driverprecision_abas import AbaJogos, AbaOtimizacao, AbaSaude
     saida = Path(os.environ.get("PRINTS", tempfile.gettempdir()))
     saida.mkdir(parents=True, exist_ok=True)
     root = tk.Tk()
@@ -275,19 +284,25 @@ def t_gui() -> None:
     p1 = jan.pagina("drivers", "Drivers", "Atualizar pelo fabricante")
     p2 = jan.pagina("jogos", "Jogos", "DirectX, Visual C++ e cia.")
     p3 = jan.pagina("otimiza", "Otimização", "ajustes para jogar")
-    g.App(root, p1); aj = AbaJogos(root, p2); ao = AbaOtimizacao(root, p3)
+    p4 = jan.pagina("escritorio", "Escritório", "Abas, planilhas e rede")
+    p5 = jan.pagina("saude", "Saúde do PC", "Segurança e reparos")
+    g.App(root, p1); aj = AbaJogos(root, p2); ao = AbaOtimizacao(root, p3, "jogos")
+    ae = AbaOtimizacao(root, p4, "escritorio"); asd = AbaSaude(root, p5)
     jan.mostrar("drivers")
     aj.verificar()
-    fim = time.time() + 60
-    while time.time() < fim and not (ao.ajustes and aj.itens):
+    fim = time.time() + 180
+    while time.time() < fim and not (ao.ajustes and aj.itens and ae.ajustes and asd.itens):
         root.update(); time.sleep(0.05)
-    (ok if len(ao.ajustes) == 30 else falha)(f"tela Otimização carregou {len(ao.ajustes)} ajustes com o estado real")
+    import driverprecision_otimiza as ot
+    (ok if len(ao.ajustes) == len(ot.do_perfil("jogos")) else falha)(f"tela Otimização carregou {len(ao.ajustes)} ajustes com o estado real")
+    (ok if len(ae.ajustes) == len(ot.do_perfil("escritorio")) else falha)(f"tela Escritório carregou {len(ae.ajustes)} ajustes com o estado real")
     (ok if aj.itens else falha)(f"tela Jogos carregou {len(aj.itens)} componentes")
+    (ok if len(asd.itens) >= 12 else falha)(f"tela Saúde do PC carregou {len(asd.itens)} itens")
     try:
         from PIL import ImageGrab
     except ImportError:
         ImageGrab = None
-    for chave in ("drivers", "jogos", "otimiza"):
+    for chave in ("drivers", "jogos", "otimiza", "escritorio", "saude"):
         jan.mostrar(chave)
         for _ in range(20):
             root.update(); time.sleep(0.05)
@@ -302,14 +317,36 @@ def t_gui() -> None:
     ok("janela abriu, trocou de tela e fechou sem erro")
 
 
+# ------------------------------------------------------------------ saúde
+def t_saude() -> None:
+    titulo("SAÚDE DO PC: diagnóstico real e cada reparo executado de verdade")
+    import driverprecision_saude as sd
+    import driverprecision_otimiza as ot
+    t0 = time.time()
+    d = sd.diagnostico()
+    print(f"  diagnóstico em {time.time() - t0:.0f} s; campos: {sorted(d)}")
+    faltando = [k for k in ("ram_gb", "uptime_h", "c_livre_gb", "firewall", "update_dias", "uac", "discos", "spooler") if d.get(k) is None]
+    (falha if faltando else ok)("diagnóstico leu tudo" + (f", menos {faltando}" if faltando else ""))
+    for i in sd.avaliar(d, ot.ambiente()):
+        print(f"    {i['status']:<9} {i['grupo'][:20]:<20} {i['nome'][:32]:<32} {i['detalhe'][:70]}")
+    for rid in ("dns", "spooler", "temp", "chkdsk", "sfc", "dism"):
+        t0 = time.time()
+        try:
+            okr, _, msg = sd.executar(rid)
+        except Exception as ex:
+            okr, msg = False, f"{type(ex).__name__}: {ex}"
+        (ok if okr else falha)(f"reparo {rid:<8} {time.time() - t0:5.0f} s  {msg[:160]}")
+    aviso("reparo rede_reset não executado aqui: derrubaria a rede da máquina de teste no meio do teste")
+
+
 def main() -> None:
     if os.name != "nt" or not os.environ.get("GITHUB_ACTIONS"):
         sys.exit("Só roda no Windows descartável do GitHub Actions (este teste ALTERA o sistema).")
     print("admin:", dp.is_admin(), "| python", sys.version.split()[0], "|", os.environ.get("RUNNER_OS"), flush=True)
-    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers"]
+    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "saude"]
     for q in quais:
         try:
-            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui}[q]()
+            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude}[q]()
         except Exception:
             falha(f"{q}: exceção não tratada\n{traceback.format_exc()}")
     titulo(f"RESULTADO: {len(FALHAS)} falha(s), {len(AVISOS)} aviso(s)")

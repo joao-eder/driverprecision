@@ -2,6 +2,22 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.0] - 2026-11-16
+
+### Adicionado
+- Tela **Escritório**: 30 ajustes para trabalho com muitas abas, planilhas, rede e segurança, no mesmo motor da Otimização (backup, Desfazer, aviso de reinício).
+  - Memória: compressão de memória, arquivo de paginação automático, SysMain.
+  - Navegadores: Chrome (Economia de memória, fechar de verdade) e Firefox (sem agente e telemetria em segundo plano), pelas políticas oficiais.
+  - Excel e Office: sem animações; sem aceleração gráfica (só com sintoma); LibreOffice com cache de imagens maior.
+  - Rede: descoberta de rede, unidades mapeadas em programas de administrador, impressora padrão fixa, placa de rede sem economia de energia, DNS pela VPN.
+  - Segurança: extensões visíveis, Defender contra programas indesejados (PUA), SMB1 desligado, Proteção do sistema ligada.
+- Tela **Saúde do PC**: diagnóstico só de leitura (segurança, integridade, memória, rede) com dicas em ordem de gravidade, e reparos com um clique (DNS, fila de impressão, temporários, chkdsk, SFC, DISM, redefinir rede).
+- **PC de empresa** (domínio, Entra ID ou Intune) detectado: o que a TI controla fica bloqueado nas telas de ajustes, nas duas telas.
+- Ajustes de programas não instalados (Chrome, Firefox, Office, LibreOffice) aparecem como "Não se aplica".
+
+### Alterado
+- "Desfazer tudo" desfaz só os ajustes da tela em que você está.
+
 ## [1.3.3] - 2026-11-16
 
 ### Alterado
@@ -71,6 +87,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.4.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.0
 [1.3.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.3
 [1.3.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.2
 [1.3.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.1

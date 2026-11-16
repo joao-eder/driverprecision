@@ -31,7 +31,7 @@ CINZA = SUAVE
 
 FONTE = "Segoe UI"
 ICONE: str | None = None
-ICONES = {"drivers": "", "jogos": "", "otimiza": "", "escudo": ""}
+ICONES = {"drivers": "", "jogos": "", "otimiza": "", "escudo": "", "escritorio": "\uE821", "saude": "\uE95E"}
 
 
 def _fontes(root: tk.Tk) -> None:
@@ -84,6 +84,7 @@ def aplicar(root: tk.Tk) -> None:
     st.map("TButton", background=[("disabled", CARTAO), ("pressed", BORDA), ("active", BORDA)],
            foreground=[("disabled", APAGADO)],
            lightcolor=[("active", BORDA)], darkcolor=[("active", BORDA)], bordercolor=[("active", BORDA)])
+    st.configure("Rep.TButton", padding=(6, 7))
     st.configure("Grande.TButton", background=AZUL, foreground="#ffffff", font=(FONTE, 11, "bold"), padding=(18, 11),
                  lightcolor=AZUL, darkcolor=AZUL, bordercolor=AZUL)
     st.map("Grande.TButton", background=[("disabled", CARTAO_2), ("pressed", AZUL), ("active", AZUL_HOVER)],

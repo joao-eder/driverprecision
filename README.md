@@ -76,6 +76,33 @@ Ajustes profundos que fazem diferença em jogo (não é "limpar arquivos tempor�
 
 Quer propor um ajuste? Ele é só um item de dados em [`driverprecision_otimiza.py`](driverprecision_otimiza.py) — veja o [CONTRIBUTING](CONTRIBUTING.md).
 
+## Escritório: muitas abas, planilhas, rede e segurança
+
+![Tela Escritório](docs/escritorio.png)
+
+Mesmo motor da Otimização (backup do valor original, Desfazer, aviso de reinício), com ajustes pensados para trabalho:
+
+| Categoria | Ajustes |
+|---|---|
+| Memória e muitas abas | compressão de memória · arquivo de paginação automático · SysMain |
+| Navegadores | Chrome: Economia de memória e fechar de verdade · Firefox: sem agente e telemetria em segundo plano |
+| Excel e Office | Office sem animações · Office sem aceleração gráfica (só com sintoma) · LibreOffice: cache de imagens maior |
+| Rede | descoberta de rede · unidades mapeadas em programas de administrador · impressora padrão fixa · placa de rede sem economia de energia · DNS pela VPN · Wi-Fi sem economia · sem P2P de atualizações |
+| Segurança | extensão dos arquivos visível · Defender contra programas indesejados (PUA) · SMB1 desligado · Proteção do sistema ligada |
+| Windows e disco | os ajustes gerais compartilhados com a Otimização |
+
+Ajustes de programas que não estão instalados aparecem como "Não se aplica".
+
+**PC de empresa:** se o computador está num domínio, no Entra ID (Azure AD) ou no Intune, o programa detecta e bloqueia (🔒) o que a TI costuma controlar — políticas, serviços, segurança e energia — para não brigar com a configuração da empresa. O resto continua disponível.
+
+## Saúde do PC
+
+![Tela Saúde do PC](docs/saude.png)
+
+Uma verificação só de leitura: antivírus e vacinas, firewall, atualizações, UAC, SMB1, BitLocker, Inicialização Segura e TPM, pontos de restauração, saúde e espaço dos discos, memória, tempo ligado, programas de inicialização, Office 32/64 bits, rede Pública/Particular e serviço de impressão. Cada item traz a dica do que fazer, em ordem de gravidade.
+
+Reparos com um clique: limpar DNS · destravar impressão · limpar temporários · verificar disco (`chkdsk /scan`) · reparar sistema (`sfc /scannow`) · reparar imagem (`DISM /RestoreHealth`) · redefinir rede.
+
 ## Uso avançado (linha de comando)
 
 Com o `.zip` e Python 3.10+:
