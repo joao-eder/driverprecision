@@ -10,8 +10,8 @@ from tkinter import messagebox, ttk
 import driverprecision as dp
 import driverprecision_jogos as jg
 import driverprecision_otimiza as ot
-
-AZUL, VERDE, LARANJA, VERMELHO, CINZA = "#2457d6", "#2e7d32", "#d9730d", "#c62828", "#5f6b7a"
+import driverprecision_tema as tema
+from driverprecision_tema import AZUL, CINZA, LARANJA, VERDE, VERMELHO
 ON, OFF = "☑", "☐"
 
 
@@ -21,18 +21,18 @@ class Aba:
     def __init__(self, root: tk.Tk, parent, titulo: str, sub: str) -> None:
         self.root = root
         self.q: queue.Queue = queue.Queue()
-        topo = ttk.Frame(parent, padding=(20, 16, 20, 4))
+        topo = ttk.Frame(parent, padding=(28, 24, 28, 4))
         topo.pack(fill="x")
         ttk.Label(topo, text=titulo, style="Titulo.TLabel").pack(anchor="w")
-        ttk.Label(topo, text=sub, style="Sub.TLabel", wraplength=860, justify="left").pack(anchor="w")
-        self.corpo = ttk.Frame(parent, padding=(20, 8))
+        ttk.Label(topo, text=sub, style="Sub.TLabel", wraplength=820, justify="left").pack(anchor="w")
+        self.corpo = ttk.Frame(parent, padding=(28, 12))
         self.corpo.pack(fill="both", expand=True)
-        self.msg = ttk.Label(self.corpo, text="", style="Msg.TLabel", wraplength=860, justify="left")
+        self.msg = ttk.Label(self.corpo, text="", style="Msg.TLabel", wraplength=820, justify="left")
         self.msg.pack(anchor="w", pady=(0, 6))
         self.barra = ttk.Progressbar(self.corpo, mode="indeterminate")
-        self.base = ttk.Frame(parent, padding=(20, 8, 20, 16))
+        self.base = ttk.Frame(parent, padding=(28, 10, 28, 22))
         self.base.pack(fill="x")
-        self.det = tk.Text(parent, height=7, font=("Consolas", 9), wrap="word", state="disabled")
+        self.det = tema.texto_log(parent, height=7)
         self.btn_det = ttk.Button(self.base, text="Mostrar detalhes", command=self._toggle_det)
         self.btn_det.pack(side="left")
         root.after(150, self._poll)
@@ -42,7 +42,7 @@ class Aba:
             self.det.pack_forget()
             self.btn_det.config(text="Mostrar detalhes")
         else:
-            self.det.pack(fill="x", padx=20, pady=(0, 12), before=self.base)
+            self.det.pack(fill="x", padx=28, pady=(0, 12), before=self.base)
             self.btn_det.config(text="Ocultar detalhes")
 
     def _log(self, m: str) -> None:
@@ -123,22 +123,17 @@ class AbaJogos(Aba):
                          "ou o jogo simplesmente fecha.")
         self.itens: dict[str, dict] = {}
         self.marcados: set[str] = set()
-        fr = ttk.Frame(self.corpo)
-        fr.pack(fill="both", expand=True)
-        self.tree = ttk.Treeview(fr, columns=("sel", "nome", "sit", "det"), show="headings", selectmode="browse")
+        fr, self.tree = tema.lista(self.corpo, columns=("sel", "nome", "sit", "det"), show="headings", selectmode="browse")
+        fr.pack(fill="both", expand=True, pady=(4, 0))
         for c, t, w, st in (("sel", "", 36, False), ("nome", "Componente", 300, True), ("sit", "Situação", 150, False),
                             ("det", "Detalhe", 300, True)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, stretch=st, anchor="center" if c == "sel" else "w")
-        sb = ttk.Scrollbar(fr, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-        for st, cor in (("OK", VERDE), ("FALTA", VERMELHO), ("DESATUALIZADO", LARANJA), ("INFO", CINZA)):
+        for st, cor in (("OK", tema.TEXTO), ("FALTA", VERMELHO), ("DESATUALIZADO", LARANJA), ("INFO", CINZA)):
             self.tree.tag_configure(st, foreground=cor)
         self.tree.bind("<Button-1>", self._clique)
         self.tree.bind("<<TreeviewSelect>>", self._mostra_desc)
-        self.desc = ttk.Label(self.corpo, text="", style="Sub.TLabel", wraplength=860, justify="left")
+        self.desc = ttk.Label(self.corpo, text="", style="Sub.TLabel", wraplength=820, justify="left")
         self.desc.pack(anchor="w", pady=(6, 0))
         self.btn = ttk.Button(self.base, text="Verificar", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
@@ -228,7 +223,7 @@ class AbaJogos(Aba):
 
 # =========================================================================== Otimização
 
-COR_RISCO = {"baixo": VERDE, "médio": LARANJA, "alto": VERMELHO}
+COR_RISCO = {"baixo": tema.TEXTO, "médio": tema.TEXTO, "alto": VERMELHO}
 ROT_EST = {"ATIVO": "● Ativo", "PADRÃO": "○ Padrão do Windows", "PARCIAL": "◐ Parcial", "N/A": "— Não se aplica"}
 
 
@@ -240,25 +235,20 @@ class AbaOtimizacao(Aba):
                          "tudo pode ser desfeito por aqui.")
         self.ajustes: dict[str, dict] = {}
         self.marcados: set[str] = set()
-        fr = ttk.Frame(self.corpo)
-        fr.pack(fill="both", expand=True)
-        self.tree = ttk.Treeview(fr, columns=("sel", "risco", "estado"), show="tree headings", selectmode="browse")
+        fr, self.tree = tema.lista(self.corpo, columns=("sel", "risco", "estado"), show="tree headings", selectmode="browse")
+        fr.pack(fill="both", expand=True, pady=(4, 0))
         self.tree.heading("#0", text="Ajuste")
         self.tree.column("#0", width=430, stretch=True)
         for c, t, w in (("sel", "", 40), ("risco", "Risco", 90), ("estado", "Estado atual", 180)):
             self.tree.heading(c, text=t)
             self.tree.column(c, width=w, stretch=False, anchor="center" if c != "estado" else "w")
-        sb = ttk.Scrollbar(fr, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
         for r, cor in COR_RISCO.items():
             self.tree.tag_configure(r, foreground=cor)
-        self.tree.tag_configure("cat", font=("Segoe UI Semibold", 10))
+        self.tree.tag_configure("cat", font=(tema.FONTE, 10, "bold"), foreground=tema.SUAVE, background=tema.CARTAO_2)
         self.tree.bind("<Button-1>", self._clique)
         self.tree.bind("<<TreeviewSelect>>", self._mostra_desc)
         self.desc = ttk.Label(self.corpo, text="Clique num ajuste para ver o que ele faz.", style="Sub.TLabel",
-                              wraplength=860, justify="left")
+                              wraplength=820, justify="left")
         self.desc.pack(anchor="w", pady=(6, 0))
 
         self.btn = ttk.Button(self.base, text="Aplicar marcados", style="Grande.TButton", command=self.aplicar)
