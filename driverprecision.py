@@ -39,7 +39,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DriverPrecision/" + VERSION
 BASE = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "DriverPrecision"
 CACHE = BASE / "cache"
@@ -222,6 +222,12 @@ def caminho_curto(p: Path) -> str:
     except Exception:
         pass
     return str(p)
+
+
+def recurso(nome: str) -> Path:
+    """Arquivo da pasta assets (logo, ícone), tanto rodando do código quanto de dentro do .exe."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / "assets" / nome
 
 
 def is_admin() -> bool:

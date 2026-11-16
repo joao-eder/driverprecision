@@ -50,7 +50,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza --hidden-import driverprecision_tema driverprecision.py | Out-Null
+          pyinstaller --onefile --noconsole --uac-admin --name DriverPrecision --icon assets/icone.ico --add-data "assets;assets" --hidden-import driverprecision_gui --hidden-import driverprecision_abas --hidden-import driverprecision_jogos --hidden-import driverprecision_otimiza --hidden-import driverprecision_tema driverprecision.py | Out-Null
           $p = Start-Process dist\DriverPrecision.exe -PassThru
           Start-Sleep 25
           $vivos = Get-Process DriverPrecision -ErrorAction SilentlyContinue

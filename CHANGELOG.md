@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.3.2] - 2026-11-16
+
+### Adicionado
+- Logo do app (controle + engrenagem): ícone do `.exe`, da janela e da barra de tarefas, e no menu lateral.
+
 ## [1.3.1] - 2026-11-16
 
 Versão de correções, depois de testar tudo num Windows de verdade (Windows Server 2022 e 2025 descartáveis do GitHub, como administrador): aplicar e desfazer os 30 ajustes, baixar e instalar os componentes de jogos, consultar Lenovo/Dell/HP, verificar drivers e abrir a janela e o .exe.
@@ -61,6 +66,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.3.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.2
 [1.3.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.1
 [1.3.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.0
 [1.2.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.2.0

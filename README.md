@@ -1,5 +1,7 @@
 # DriverPrecision
 
+<p align="center"><img src="assets/logo.png" width="160" alt="Logo do DriverPrecision"></p>
+
 [![CI](https://github.com/joao-eder/driverprecision/actions/workflows/ci.yml/badge.svg)](https://github.com/joao-eder/driverprecision/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/joao-eder/driverprecision)](https://github.com/joao-eder/driverprecision/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
