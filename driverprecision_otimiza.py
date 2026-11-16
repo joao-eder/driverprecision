@@ -180,6 +180,21 @@ PREFERENCIAS_PLANO = [("SUB_BUTTONS", "LIDACTION"), ("SUB_BUTTONS", "PBUTTONACTI
                       ("SUB_VIDEO", "VIDEOIDLE"), ("SUB_SLEEP", "STANDBYIDLE")]
 
 
+# desempenho também na bateria, aplicado no plano Desempenho Máximo (o padrão de fábrica economiza na bateria)
+DESEMPENHO_NA_BATERIA = [
+    ("44f3beca-a7c0-460e-9df2-bb8b99e0cba6", "3619c3f2-afb2-4afc-b0e9-e7fef372de36", 2),  # gráficos Intel: desempenho máximo
+    ("9596fb26-9850-41fd-ac3e-f7c3c00afd4b", "03680956-93bc-4294-bba6-4e0f09bb717f", 1),  # compartilhando mídia: não suspender
+    ("9596fb26-9850-41fd-ac3e-f7c3c00afd4b", "10778347-1370-4ee0-8bbd-33bdacaade49", 1),  # vídeo: tendência de desempenho
+    ("9596fb26-9850-41fd-ac3e-f7c3c00afd4b", "34c7b99f-9a6d-4b3c-8dc7-b6693b78cef4", 0),  # vídeo: otimizar qualidade
+]
+
+
+def _desempenho_na_bateria(plano: str) -> None:
+    for sub, st, v in DESEMPENHO_NA_BATERIA:  # configuração que o PC não tem (ex.: sem Intel) é ignorada
+        _cmd(["powercfg", "/setacvalueindex", plano, sub, st, str(v)])
+        _cmd(["powercfg", "/setdcvalueindex", plano, sub, st, str(v)])
+
+
 def _herdar_preferencias(de: str, para: str) -> list[str]:
     """Copia para o plano novo o que a pessoa escolheu no plano antigo. Devolve o que foi copiado."""
     copiados = []
@@ -369,8 +384,8 @@ AJUSTES: list[dict] = [
     # ---- Energia e CPU
     {"id": "plano_max", "cat": "Energia e CPU", "nome": "Plano de energia Desempenho Máximo", "risco": "baixo",
      "tipo": "plano", "desc": "Ativa o plano escondido do Windows que tira os atrasos de economia de energia do processador. "
-                               "Em notebook, use na tomada. O que você escolheu para a tampa, o botão de energia e o tempo "
-                               "para apagar a tela é copiado do seu plano atual."},
+                               "Também na bateria: gráficos Intel no máximo e vídeo em qualidade máxima (gasta mais bateria). "
+                               "O que você escolheu para a tampa, os botões e o tempo para apagar a tela é copiado do seu plano atual."},
     {"id": "core_parking", "cat": "Energia e CPU", "nome": "Desligar estacionamento de núcleos", "risco": "médio",
      "tipo": "powercfg", "pc": (SUB_PROC, CPMINCORES, 100, None),
      "desc": "Mantém todos os núcleos acordados (na tomada). Evita travadinhas quando o jogo pede CPU de repente."},
@@ -483,9 +498,9 @@ AJUSTES: list[dict] = [
      "tipo": "powercfg", "pc": (SUB_WIFI, WIFI_POWER, 0, 0),
      "desc": "A placa Wi-Fi para de 'cochilar' entre pacotes. Ping mais estável em notebook; gasta um pouco mais de bateria."},
     {"id": "pcie_aspm", "cat": "Placa de vídeo", "nome": "Desligar economia de energia do PCIe (ASPM)", "risco": "médio",
-     "tipo": "powercfg", "pc": (SUB_PCIE, PCIE_ASPM, 0, None),
+     "tipo": "powercfg", "pc": (SUB_PCIE, PCIE_ASPM, 0, 0),
      "desc": "Placa de vídeo e SSD NVMe não entram em economia de energia entre um quadro e outro. Menos travadinhas. "
-             "Só vale na tomada; na bateria a economia continua."},
+             "Vale na tomada e na bateria (gasta mais bateria)."},
     # ---- Mouse e teclado
     {"id": "teclado", "cat": "Mouse e teclado", "nome": "Repetição do teclado mais rápida", "risco": "baixo", "reboot": True,
      "reg": [("HKCU", r"Control Panel\Keyboard", "KeyboardDelay", SZ, "0"),
@@ -608,18 +623,29 @@ AJUSTES += [
              "Usa até alguns GB do disco C:."},
 ]
 
+CAT_ENERGIA = "Tampa, botões e tela"
 AJUSTES += [
-    {"id": "tampa_nada", "perfis": ("jogos", "escritorio"), "cat": "Notebook", "nome": "Fechar a tampa não suspende nem desliga",
-     "risco": "baixo", "tipo": "todos_planos", "pc": ("SUB_BUTTONS", "LIDACTION", 0, 0),
+    {"id": "tampa_nada", "perfis": ("jogos", "escritorio"), "cat": CAT_ENERGIA, "nome": "Fechar a tampa não suspende nem desliga",
+     "risco": "baixo", "tipo": "todos_planos", "pcs": [("SUB_BUTTONS", "LIDACTION", 0, 0)],
      "aplica_se": lambda: tem_bateria(), "requisito": "só para notebook",
      "desc": "Ao fechar ou baixar a tampa, só a tela do notebook apaga: programas, downloads, VPN, chamada e monitor externo "
              "continuam funcionando. Evita o monitor ligado em hub USB-C voltar com resolução errada depois de suspender. "
              "Vale na bateria e na tomada, em todos os planos de energia. Para suspender, use o menu Iniciar."},
+    {"id": "botoes_nada", "perfis": ("jogos", "escritorio"), "cat": CAT_ENERGIA,
+     "nome": "Botão de energia e de suspensão não fazem nada", "risco": "baixo", "recomendado": False,
+     "tipo": "todos_planos", "pcs": [("SUB_BUTTONS", "PBUTTONACTION", 0, 0), ("SUB_BUTTONS", "SBUTTONACTION", 0, 0)],
+     "desc": "Um toque sem querer no botão de energia (ou na tecla de suspender) não derruba o jogo, a chamada ou o trabalho. "
+             "Para desligar, use o menu Iniciar. Se o PC travar, segurar o botão por uns 5 segundos continua desligando."},
+    {"id": "tela_sempre", "perfis": ("jogos", "escritorio"), "cat": CAT_ENERGIA,
+     "nome": "Tela e PC nunca apagam nem suspendem sozinhos", "risco": "baixo", "recomendado": False,
+     "tipo": "todos_planos", "pcs": [("SUB_VIDEO", "VIDEOIDLE", 0, 0), ("SUB_SLEEP", "STANDBYIDLE", 0, 0)],
+     "desc": "Downloads, renderizações, partidas e chamadas não são interrompidos por inatividade, nem na bateria. "
+             "Gasta mais energia. A tela continua bloqueando se o Windows estiver configurado para isso; Windows + L bloqueia na hora."},
 ]
 
-ORDEM_CATS = {"jogos": ["Notebook", "Energia e CPU", "Placa de vídeo", "Agendador multimídia", "Rede", "Mouse e teclado", "Windows",
+ORDEM_CATS = {"jogos": [CAT_ENERGIA, "Energia e CPU", "Placa de vídeo", "Agendador multimídia", "Rede", "Mouse e teclado", "Windows",
                         "Disco", "Segurança x desempenho"],
-              "escritorio": ["Notebook", "Memória e muitas abas", "Navegadores", "Excel e Office", "Rede", "Segurança", "Windows", "Disco",
+              "escritorio": [CAT_ENERGIA, "Memória e muitas abas", "Navegadores", "Excel e Office", "Rede", "Segurança", "Windows", "Disco",
                              "Mouse e teclado"]}
 POR_ID = {a["id"]: a for a in AJUSTES}
 
@@ -659,12 +685,11 @@ def estado(a: dict) -> str:
     if a.get("aplica_se") and not a["aplica_se"]():
         return "N/A"
     if t == "todos_planos":
-        sub, st, ac, dc = a["pc"]
-        vals = [_pc_lidos(sub, st, g) for g in planos()]
-        vals = [v for v in vals if v[0] is not None]
+        vals = [(_pc_lidos(sub, st, g), (ac, dc)) for g in planos() for sub, st, ac, dc in a["pcs"]]
+        vals = [(v, alvo) for v, alvo in vals if v[0] is not None]
         if not vals:
             return "N/A"
-        iguais = sum(1 for v in vals if v == (ac, dc))
+        iguais = sum(1 for v, alvo in vals if v == alvo)
         return "ATIVO" if iguais == len(vals) else ("PARCIAL" if iguais else "PADRÃO")
     if t == "ps":
         v = _ps_ler(a)
@@ -685,18 +710,18 @@ def aplicar(aid: str) -> str:
     orig = b.get(aid)  # já aplicado antes: mantém o original da primeira vez
     t = a.get("tipo")
     if t == "todos_planos":
-        sub, st, ac, dc = a["pc"]
-        atuais = {g: _pc_lidos(sub, st, g) for g in planos()}
-        atuais = {g: v for g, v in atuais.items() if v[0] is not None}
+        gs = planos()
+        atuais = [(g, sub, st, ac, dc, _pc_lidos(sub, st, g)) for g in gs for sub, st, ac, dc in a["pcs"]]
+        atuais = [x for x in atuais if x[5][0] is not None]
         if not atuais:
             raise RuntimeError("este PC não tem essa configuração de energia")
         if orig is None:
-            orig = {"todos_planos": [[g, sub, st, v[0], v[1]] for g, v in atuais.items()]}
-        for g in atuais:
+            orig = {"todos_planos": [[g, sub, st, v[0], v[1]] for g, sub, st, _, _, v in atuais]}
+        for g, sub, st, ac, dc, _ in atuais:
             _cmd(["powercfg", "/setacvalueindex", g, sub, st, str(ac)])
             _cmd(["powercfg", "/setdcvalueindex", g, sub, st, str(dc)])
         _cmd(["powercfg", "/setactive", "SCHEME_CURRENT"])
-        msg = f"aplicado em {len(atuais)} plano(s) de energia"
+        msg = f"aplicado em {len(gs)} plano(s) de energia"
     elif t == "ps":
         v = _ps_ler(a)
         if v is None:
@@ -714,10 +739,12 @@ def aplicar(aid: str) -> str:
         g = _plano_maximo()
         anterior = plano_ativo()
         _herdar_preferencias(anterior, g)
+        _desempenho_na_bateria(g)
         rc, out = _cmd(["powercfg", "/setactive", g])
         if rc != 0 and g != ALTO_DESEMPENHO:  # Modern Standby: tenta o Alto Desempenho
             g = ALTO_DESEMPENHO
             _herdar_preferencias(anterior, g)
+            _desempenho_na_bateria(g)
             rc, out = _cmd(["powercfg", "/setactive", g])
         if rc != 0:
             raise RuntimeError("o Windows não aceitou trocar o plano de energia: " + out.strip()[:160])

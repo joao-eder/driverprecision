@@ -37,8 +37,8 @@ class Perfis(Base):
         self.assertNotIn("chrome_memoria", ids_j)
         self.assertIn("telemetria", ids_j & ids_e)    # compartilhados aparecem nas duas
         cats = [a["cat"] for a in esc]
-        self.assertEqual(cats[0], "Notebook")
-        self.assertEqual(cats[1], "Memória e muitas abas")
+        self.assertEqual(cats[0], ot.CAT_ENERGIA)
+        self.assertEqual([c for c in cats if c != ot.CAT_ENERGIA][0], "Memória e muitas abas")
         self.assertEqual(cats, sorted(cats, key=ot.ORDEM_CATS["escritorio"].index))
 
     def test_nenhum_ajuste_de_escritorio_reduz_seguranca(self):
@@ -238,7 +238,7 @@ class PlanoDeEnergia(Base):
                 ac, dc = planos[args[2]][args[4]]
                 return 0, f"Índice AC Atual: 0x{ac:08x}\r\nÍndice DC Atual: 0x{dc:08x}\r\n"
             if op in ("/setacvalueindex", "/setdcvalueindex"):
-                planos[args[2]][args[4]][0 if "ac" in op else 1] = int(args[5])
+                planos[args[2]].setdefault(args[4], [None, None])[0 if "ac" in op else 1] = int(args[5])
                 return 0, ""
             if op == "/setactive":
                 ativo[0] = args[2]
@@ -250,6 +250,9 @@ class PlanoDeEnergia(Base):
             self.assertEqual(planos[novo]["LIDACTION"], [0, 0])      # tampa: "não fazer nada" continua
             self.assertEqual(planos[novo]["VIDEOIDLE"], [600, 300])
             self.assertEqual(planos[novo]["STANDBYIDLE"], [0, 900])
+            for _, st, v in ot.DESEMPENHO_NA_BATERIA:              # desempenho também na bateria
+                self.assertEqual(planos[novo][st], [v, v], st)
+            self.assertNotIn("3619c3f2-afb2-4afc-b0e9-e7fef372de36", planos[antigo])   # plano antigo intocado
             ot.desfazer("plano_max")
             self.assertEqual(ativo[0], antigo)
         finally:
@@ -291,4 +294,4 @@ class Tampa(Base):
 
     def test_notebook_no_topo_das_duas_telas(self):
         for perfil in ("jogos", "escritorio"):
-            self.assertEqual(ot.do_perfil(perfil)[0]["id"], "tampa_nada", perfil)
+            self.assertEqual([a["id"] for a in ot.do_perfil(perfil)[:3]], ["tampa_nada", "botoes_nada", "tela_sempre"], perfil)

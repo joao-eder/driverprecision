@@ -45,8 +45,7 @@ def _foto(ot, a) -> dict:
     if t == "hiber":
         return {"hiber": ot.REG.get("HKLM", ot.PWR, "HibernateEnabled")[2]}
     if t == "todos_planos":
-        sub, st, _, _ = a["pc"]
-        return {"planos": {g: ot._pc_lidos(sub, st, g) for g in ot.planos()}}
+        return {"planos": {(g, st): ot._pc_lidos(sub, st, g) for g in ot.planos() for sub, st, _, _ in a["pcs"]}}
     if t == "ps":
         return {"ps": ot._ps_ler(a), "guardar": [ot.REG.get(h, p, n) for h, p, n in a.get("guardar", [])]}
     return {"reg": [ot.REG.get(h, p, n) for h, p, n, _, _ in ot.regs_do_ajuste(a)]}
