@@ -250,6 +250,13 @@ def _exec(args: list[str], timeout: int = 3600) -> tuple[int, str]:
     return r.returncode, dp._dec(r.stdout) + dp._dec(r.stderr)
 
 
+def _ultima_frase(out: str) -> str:
+    """Última linha útil da saída (sem barras de progresso como '[====  59.1%  ]')."""
+    linhas = [l.strip() for l in out.replace("\r", "\n").splitlines()]
+    linhas = [l for l in linhas if l and "%" not in l and not set(l) <= set("=[]-. ")]
+    return linhas[-1][:300] if linhas else ""
+
+
 def _limpa_temp(dias: float = 1) -> tuple[int, int]:
     limite = time.time() - dias * 86400
     pastas = {Path(os.environ.get("TEMP", "")), Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp"}
@@ -299,12 +306,10 @@ def executar(rid: str) -> tuple[bool, bool, str]:
                               "rode 'chkdsk C: /f' e reinicie.")
     if rid == "sfc":
         rc, out = _exec([str(w / "sfc.exe"), "/scannow"], 5400)
-        fim = " ".join(out.split())[-400:]
-        return rc == 0, rc == 0, f"código {rc}. {fim}"
+        return rc == 0, rc == 0, _ultima_frase(out) or f"terminou com código {rc}"
     if rid == "dism":
         rc, out = _exec([str(w / "Dism.exe"), "/Online", "/Cleanup-Image", "/RestoreHealth"], 5400)
-        fim = " ".join(out.split())[-300:]
-        return rc == 0, rc == 0, ("imagem do Windows reparada/íntegra. " if rc == 0 else f"DISM falhou (código {rc}). ") + fim
+        return rc == 0, rc == 0, ("imagem do Windows reparada/íntegra. " if rc == 0 else f"DISM falhou (código {rc}). ") + _ultima_frase(out)
     if rid == "rede_reset":
         rc1, o1 = _exec([str(w / "netsh.exe"), "winsock", "reset"], 120)
         rc2, o2 = _exec([str(w / "netsh.exe"), "int", "ip", "reset"], 120)

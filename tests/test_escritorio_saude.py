@@ -208,6 +208,13 @@ class Saude(unittest.TestCase):
         self.assertEqual(ruins, [])
         self.assertTrue(sd.avaliar({}))               # Windows sem os cmdlets: não quebra
 
+    def test_mensagem_sem_barra_de_progresso(self):
+        sfc = ("Beginning verification phase.\r\nVerification 99% complete.\r\n\r\n"
+               "Windows Resource Protection found corrupt files and successfully repaired them.\r\n")
+        self.assertEqual(sd._ultima_frase(sfc), "Windows Resource Protection found corrupt files and successfully repaired them.")
+        dism = "[==========================62.3%====       ]\r\n[==========================100.0%==========================]\r\nThe operation completed successfully.\r\n"
+        self.assertEqual(sd._ultima_frase(dism), "The operation completed successfully.")
+
     def test_limpa_so_temporario_antigo(self):
         with tempfile.TemporaryDirectory() as t:
             base = Path(t) / "a" / "Temp"

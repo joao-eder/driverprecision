@@ -23,6 +23,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 ### Corrigido
 - O plano **Desempenho Máximo** trocava a ação da tampa, do botão de energia e os tempos de tela e suspensão pelos padrões do Windows (fechar a tampa passava a suspender, e monitores em hub USB-C voltavam com resolução errada). Agora o plano novo herda essas preferências do plano anterior.
 - "Efeitos visuais no mínimo" mantém o ClearType (letras nítidas) ligado.
+- Ajustes via PowerShell conferem de novo por alguns segundos antes de declarar falha (a compressão de memória às vezes demora a refletir).
+- Mensagens do SFC e do DISM sem as barras de progresso.
 
 ### Alterado
 - "Desfazer tudo" desfaz só os ajustes da tela em que você está.
