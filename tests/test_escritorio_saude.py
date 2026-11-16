@@ -132,6 +132,21 @@ class AjustePowerShell(Base):
         self.assertEqual(ot.REG.get("HKLM", ot.MEM, "PagingFiles")[2], manual)
 
 
+class Demora(Base):
+    def test_confere_de_novo_quando_o_windows_demora(self):
+        leituras = iter(["False", "False", "False", "True"])   # antes, logo depois, ..., refletiu
+
+        def fake(script, timeout=600):
+            return next(leituras) if "Get-MMAgent" in script else ""
+        ot.dp.powershell = fake
+        sleep_orig, ot.time.sleep = ot.time.sleep, lambda s: None
+        try:
+            ot.aplicar("memcomp")
+            self.assertEqual(ot.aplicados(), ["memcomp"])
+        finally:
+            ot.time.sleep = sleep_orig
+
+
 class PcDaEmpresa(Base):
     def test_programa_ausente_fica_nao_se_aplica(self):
         a = ot.POR_ID["chrome_memoria"]

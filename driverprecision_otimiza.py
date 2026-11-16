@@ -730,7 +730,11 @@ def aplicar(aid: str) -> str:
             orig = {"ps": v, "reg": [[h, p, n, *REG.get(h, p, n)] for h, p, n in a.get("guardar", [])]}
         if not _ps_ativo(a, v):
             _ps_gravar(a, a["ps"]["alvo"])
-            if not _ps_ativo(a, _ps_ler(a)):
+            for espera in (0, 1, 2, 3, 4):  # alguns recursos (ex.: compressão de memória) demoram a refletir a mudança
+                time.sleep(espera)
+                if _ps_ativo(a, _ps_ler(a)):
+                    break
+            else:
                 raise RuntimeError("o Windows não aceitou a alteração")
         msg = "aplicado"
     elif t == "plano":
