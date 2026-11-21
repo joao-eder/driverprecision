@@ -48,7 +48,8 @@ STATE = OUT / "ultimo_scan.json"
 SYS32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 
 # Barramentos físicos (dispositivos reais). Software/ROOT só entra se estiver com erro.
-PHYS_BUS = {"PCI", "USB", "HDAUDIO", "INTELAUDIO", "ACPI", "HID", "SD", "UEFI", "BTH",
+PHYS_BUS = {"PCI", "USB", "HDAUDIO", "INTELAUDIO", "ACPI", "HID", "SD", "UEFI", "BTH", "USBPRINT", "WSDPRINT",
+            "BTHLE", "BTHLEDEVICE", "BTHHFENUM",
             "BTHENUM", "DISPLAY", "SCSI", "NVME", "USBSTOR", "MEDIA"}
 # Classes onde um driver genérico (inbox) significa perda de função/desempenho.
 CLASSES_CRITICAS = {"DISPLAY", "NET", "MEDIA", "BLUETOOTH", "CAMERA", "IMAGE", "BIOMETRIC",
@@ -312,6 +313,41 @@ FABRICANTES_PECA = {
     "ASMedia": ({"1B21"}, set(), r"asmedia"),
     "Renesas": ({"1912"}, set(), r"renesas"),
     "Marvell": ({"11AB", "1B4B"}, set(), r"marvell"),
+    # periféricos (USB): impressoras, webcams, controles, mouses, adaptadores
+    "Microsoft": ({"045E"}, set(), r"microsoft"),
+    "Logitech": ({"046D"}, set(), r"logitech"),
+    "HP": ({"03F0"}, set(), r"\bhp\b|hewlett"),
+    "Epson": ({"04B8"}, set(), r"epson|seiko"),
+    "Canon": ({"04A9"}, set(), r"canon"),
+    "Brother": ({"04F9"}, set(), r"brother"),
+    "Samsung": ({"04E8", "144D"}, set(), r"samsung"),
+    "Sony": ({"054C"}, set(), r"\bsony\b"),
+    "Lenovo": ({"17EF"}, set(), r"lenovo"),
+    "Dell": ({"413C"}, set(), r"\bdell\b"),
+    "Apple": ({"05AC"}, set(), r"\bapple\b"),
+    "Google": ({"18D1"}, set(), r"google"),
+    "Razer": ({"1532"}, set(), r"razer"),
+    "Corsair": ({"1B1C", "0FD9"}, set(), r"corsair|elgato"),
+    "SteelSeries": ({"1038"}, set(), r"steelseries"),
+    "Wacom": ({"056A"}, set(), r"wacom"),
+    "Xerox": ({"0924"}, set(), r"xerox"),
+    "Lexmark": ({"043D"}, set(), r"lexmark"),
+    "Ricoh": ({"05CA"}, set(), r"ricoh"),
+    "Kyocera": ({"0482"}, set(), r"kyocera"),
+    "Zebra": ({"0A5F"}, set(), r"zebra"),
+    "DisplayLink": ({"17E9"}, set(), r"displaylink|synaptics"),
+    "ASIX": ({"0B95"}, set(), r"\basix\b"),
+    "Silicon Labs": ({"10C4"}, set(), r"silicon lab"),
+    "FTDI": ({"0403"}, set(), r"ftdi|future technology"),
+    "Prolific": ({"067B"}, set(), r"prolific"),
+    "WCH": ({"1A86"}, set(), r"\bwch\b|qinheng"),
+    "Thrustmaster": ({"044F"}, set(), r"thrustmaster|guillemot"),
+    "Fanatec": ({"0EB7"}, set(), r"fanatec|endor"),
+    "8BitDo": ({"2DC8"}, set(), r"8bitdo"),
+    "Huawei": ({"12D1"}, set(), r"huawei"),
+    "Xiaomi": ({"2717"}, set(), r"xiaomi"),
+    "Motorola": ({"22B8"}, set(), r"motorola"),
+    "Garmin": ({"091E"}, set(), r"garmin"),
 }
 # como cada fabricante de PC assina pacotes que ele mesmo publica no Windows Update/Catálogo
 PROVEDOR_OEM = {"lenovo": r"lenovo", "dell": r"\bdell\b|alienware", "hp": r"\bhp\b|hewlett"}
@@ -794,10 +830,10 @@ def catalogo_detalhe(uid: str) -> dict:
 
 
 def _alvo_catalogo(d: dict) -> bool:
+    if d["sem_driver"] and d["hwids"]:
+        return True  # aparelho conectado sem driver (impressora, webcam, controle...): procura em qualquer barramento
     if d["bus"] not in {"PCI", "USB", "HDAUDIO", "INTELAUDIO", "ACPI", "BTH", "SD", "HID"}:
         return False
-    if d["sem_driver"]:
-        return True
     if any(c["source"] == "OEM" and c.get("level") == "exato" for c in d["cands"]):
         return False  # o fabricante do PC já validou ESTA peça; só pelo chip não basta (a placa pode ter sido trocada)
     if d["inbox"] and driver_de_classe(d):
@@ -886,8 +922,8 @@ def _nivel_confianca(c: dict, peca: tuple[str, str] | None, pc_oem: str) -> int 
     if c["source"] == "OEM":
         return 0 if c.get("level") == "exato" else 2
     prov = c.get("provider") or ""
-    if re.fullmatch(r"microsoft( corporation)?", prov.strip(), re.I):
-        return None  # genérico
+    if re.fullmatch(r"microsoft( corporation)?", prov.strip(), re.I) and not (peca and peca[0] == "Microsoft"):
+        return None  # genérico (a não ser que a peça seja da própria Microsoft: controle Xbox, Surface...)
     if peca is None:  # fabricante do chip desconhecido: vale a regra de antes (ID exato)
         return 1
     if re.search(peca[1], prov, re.I):

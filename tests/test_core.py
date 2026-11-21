@@ -223,6 +223,25 @@ class PecaTrocadaEEstavel(unittest.TestCase):
         self.assertEqual(d["melhor"]["version"], "23.80.0.3")
         self.assertEqual(d["instaveis"], 3)
 
+    def test_aparelho_da_microsoft_aceita_driver_da_microsoft(self):
+        d = dev(["USB\\VID_045E&PID_0B12&REV_0503"], inf="", cls="XNACOMPOSITE", err=28)
+        d["cands"] = [self.cand("WU", "10.0.22621.1", level="exato", provider="Microsoft")]
+        dp.avaliar(d)
+        self.assertEqual(d["status"], "INSTALAR")
+        e = dev(["USB\\VID_046D&PID_085E"], inf="", err=28)            # webcam Logitech: Microsoft aqui é genérico
+        e["cands"] = [self.cand("WU", "10.0.1.1", level="exato", provider="Microsoft")]
+        dp.avaliar(e)
+        self.assertEqual(e["status"], "SEM DRIVER")
+
+    def test_periferico_conectado_sem_driver_recebe_o_do_fabricante(self):
+        d = dev(["USB\\VID_03F0&PID_2B2A&MI_00"], inf="", cls="PRINTER", err=28)
+        d["cands"] = [self.cand("WU", "61.240.1.24", level="exato", provider="HP"),
+                      self.cand("CAT", "9.9.9.9", level="exato", provider="Drivers Universais Ltda")]
+        dp.avaliar(d)
+        self.assertEqual(d["status"], "INSTALAR")
+        self.assertEqual(d["melhor"]["provider"], "HP")
+        self.assertTrue(dp._alvo_catalogo(dict(d, bus="USBPRINT")))   # impressora USB sem driver também é procurada
+
     def test_estavel_nao_confunde_palavras(self):
         for t in ("Realtek Audio Driver", "Intel Graphics 31.0.101.5590", "AMD Chipset Software", "Precision Touchpad"):
             self.assertTrue(dp.estavel({"title": t}), t)

@@ -10,6 +10,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - **Peça original com versão mais nova do fabricante da peça:** Wi-Fi, Bluetooth, rede e vídeo ficam com a versão estável mais nova (o pacote do fabricante do PC é o mesmo driver, repassado com atraso); áudio, chipset, controlador de disco, térmico, touchpad, câmera e afins ficam com a versão validada pelo fabricante do PC (ajustada ao modelo), e o relatório mostra a mais nova.
 - **BIOS e firmware só avisam:** a tela de Drivers mostra a versão instalada, a disponível e a data, com botão para a página do fabricante. Nunca são instalados pelo programa.
 - Lista de drivers ("Driver de") e relatório mostram o fabricante da peça e quem publicou o driver.
+- **Aparelhos conectados:** periféricos de mais de 30 marcas (Logitech, HP, Epson, Canon, Brother, Razer, Wacom...) têm o fabricante identificado; impressoras USB/de rede e aparelhos Bluetooth LE sem driver também são procurados; aparelhos da própria Microsoft (controle Xbox, Surface) aceitam o driver da Microsoft.
 - Busca no Catálogo da Microsoft também para peças que o fabricante do PC só reconhece pelo chip.
 
 ## [1.4.0] - 2026-11-16

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 import tempfile
 import time
@@ -333,6 +334,77 @@ def t_gui() -> None:
     ok("janela abriu, trocou de tela e fechou sem erro")
 
 
+# ------------------------------------------------------------------ peças: fabricante certo e só estável
+PECAS = [  # Hardware IDs reais (o 1º é o mais específico); várias marcas e tipos de peça
+    ("Wi-Fi Intel AX210 (placa avulsa)", "NET", ["PCI\\VEN_8086&DEV_2725&SUBSYS_00248086", "PCI\\VEN_8086&DEV_2725"]),
+    ("Wi-Fi Intel AX201 (CNVi)", "NET", ["PCI\\VEN_8086&DEV_A0F0&SUBSYS_02448086", "PCI\\VEN_8086&DEV_A0F0"]),
+    ("Wi-Fi Intel 9560 (ThinkPad T490)", "NET", ["PCI\\VEN_8086&DEV_9DF0&SUBSYS_00348086", "PCI\\VEN_8086&DEV_9DF0"]),
+    ("Wi-Fi Realtek RTL8822CE", "NET", ["PCI\\VEN_10EC&DEV_C822&SUBSYS_C82210EC", "PCI\\VEN_10EC&DEV_C822"]),
+    ("Rede Realtek RTL8111/8168 (ASUS)", "NET", ["PCI\\VEN_10EC&DEV_8168&SUBSYS_86771043", "PCI\\VEN_10EC&DEV_8168"]),
+    ("Vídeo Intel UHD 620 (ThinkPad T490)", "DISPLAY", ["PCI\\VEN_8086&DEV_3EA0&SUBSYS_229217AA", "PCI\\VEN_8086&DEV_3EA0"]),
+    ("Vídeo AMD Radeon (Ryzen 5000U, ASUS)", "DISPLAY", ["PCI\\VEN_1002&DEV_164C&SUBSYS_1E121043", "PCI\\VEN_1002&DEV_164C"]),
+    ("Vídeo NVIDIA GTX 1650 Mobile", "DISPLAY", ["PCI\\VEN_10DE&DEV_1F99&SUBSYS_3A4317AA", "PCI\\VEN_10DE&DEV_1F99"]),
+    ("Áudio Realtek ALC257 (ThinkPad T490)", "MEDIA", ["HDAUDIO\\FUNC_01&VEN_10EC&DEV_0257&SUBSYS_17AA2292", "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0257"]),
+    ("Bluetooth Intel (AX210)", "BLUETOOTH", ["USB\\VID_8087&PID_0032&REV_0000", "USB\\VID_8087&PID_0032"]),
+    ("Bluetooth Realtek", "BLUETOOTH", ["USB\\VID_0BDA&PID_B00C&REV_0000", "USB\\VID_0BDA&PID_B00C"]),
+    ("Serial IO Intel (ThinkPad T490)", "SYSTEM", ["PCI\\VEN_8086&DEV_9DE8&SUBSYS_229217AA", "PCI\\VEN_8086&DEV_9DE8"]),
+    ("Controle Xbox (USB)", "XNACOMPOSITE", ["USB\\VID_045E&PID_02EA&REV_0408", "USB\\VID_045E&PID_02EA"]),
+    ("Impressora HP (USB)", "PRINTER", ["USB\\VID_03F0&PID_2B2A&MI_00", "USB\\VID_03F0&PID_2B2A"]),
+]
+
+
+def t_pecas() -> None:
+    titulo("PEÇAS: Catálogo da Microsoft ao vivo; o escolhido tem de ser do fabricante da peça, exato e estável")
+    import driverprecision as dp
+    devs = []
+    for nome, cls, hw in PECAS:
+        devs.append({"id": hw[0] + "\\1", "name": nome, "hwids": [h.upper() for h in hw], "compat": [], "mids": [h.upper() for h in hw],
+                     "bus": hw[0].split("\\")[0], "cls": cls, "inbox": True, "sem_driver": True, "ver": "", "err": 28,
+                     "cands": [], "pc_oem": "lenovo", "oem_consultado": True})
+    print("  ", dp.fonte_catalogo({"build": 26100, "arch": "AMD64"}, devs))
+    for d in devs:
+        dp.avaliar(d)
+        b = d["melhor"]
+        peca = dp.fabricante_peca(d)
+        provs = sorted({c.get("provider") or "?" for c in d["cands"]})
+        print(f"    {d['name'][:38]:<38} peça={d['fabricante_peca'] or '?':<10} candidatos={len(d['cands'])} {provs}")
+        if not b:
+            print("      -> nenhum driver aceito (nenhum do fabricante da peça, exato e estável)")
+            continue
+        print(f"      -> {b.get('provider')} {b.get('version')} | {b.get('title', '')[:70]}")
+        regra = (peca is None or re.search(peca[1], b.get("provider") or "", re.I)
+                 or re.search(dp.PROVEDOR_OEM["lenovo"], b.get("provider") or "", re.I))
+        (ok if regra else falha)(f"{d['name']}: driver de {b.get('provider')} " + ("(fabricante certo)" if regra else "NÃO é do fabricante da peça"))
+        (ok if dp.estavel(b) else falha)(f"{d['name']}: versão estável")
+        (ok if b.get("level") == "exato" else falha)(f"{d['name']}: Hardware ID exato na lista oficial do pacote")
+
+
+# ------------------------------------------------------------------ sondagem dos sites dos fabricantes
+SONDAS = [
+    ("NVIDIA: tipos de produto", "https://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=1"),
+    ("NVIDIA: séries de GeForce", "https://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=2&ParentID=1"),
+    ("NVIDIA: sistemas", "https://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=4"),
+    ("NVIDIA: busca de driver (GTX 1650 notebook, Win11, DCH, WHQL)",
+     "https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php?func=DriverManualLookup"
+     "&psid=123&pfid=889&osID=135&languageCode=1033&beta=0&isWHQL=1&dch=1&upCRD=0&sort1=0&numberOfResults=2"),
+    ("AMD: manifesto do Adrenalin", "https://drivers.amd.com/drivers/installer/json/version.json"),
+    ("Intel: DSA", "https://dsadata.intel.com/"),
+    ("Intel: centro de downloads (Wi-Fi)", "https://www.intel.com/content/www/us/en/download/19351/windows-10-and-windows-11-wi-fi-drivers-for-intel-wireless-adapters.html"),
+    ("Realtek: downloads", "https://www.realtek.com/Download/List?cate_id=593"),
+]
+
+
+def t_sites() -> None:
+    titulo("SONDAGEM: o que os sites oficiais dos fabricantes respondem (só leitura, para projetar as fontes)")
+    import driverprecision as dp
+    for nome, url in SONDAS:
+        try:
+            t = dp.http_get(url, timeout=40).decode("utf-8", "replace")
+            print(f"  [{len(t):>8} bytes] {nome}\n      {url[:120]}\n      " + re.sub(r"\s+", " ", t)[:700])
+        except Exception as ex:
+            print(f"  [   falhou] {nome}: {type(ex).__name__}: {str(ex)[:150]}")
+
+
 # ------------------------------------------------------------------ saúde
 def t_saude() -> None:
     titulo("SAÚDE DO PC: diagnóstico real e cada reparo executado de verdade")
@@ -359,10 +431,10 @@ def main() -> None:
     if os.name != "nt" or not os.environ.get("GITHUB_ACTIONS"):
         sys.exit("Só roda no Windows descartável do GitHub Actions (este teste ALTERA o sistema).")
     print("admin:", dp.is_admin(), "| python", sys.version.split()[0], "|", os.environ.get("RUNNER_OS"), flush=True)
-    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "saude"]
+    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "pecas", "sites", "saude"]
     for q in quais:
         try:
-            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude}[q]()
+            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude, "pecas": t_pecas, "sites": t_sites}[q]()
         except Exception:
             falha(f"{q}: exceção não tratada\n{traceback.format_exc()}")
     titulo(f"RESULTADO: {len(FALHAS)} falha(s), {len(AVISOS)} aviso(s)")
