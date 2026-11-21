@@ -157,7 +157,15 @@ Opções do scan: `--sem-oem`, `--sem-wu`, `--sem-catalogo`, `--nao-abrir`.
 | GENÉRICO | inbox em classe crítica (vídeo, rede, áudio...) e nenhuma fonte publica driver específico |
 | OK | igual ou mais novo, ou driver de classe padrão do Windows (USB hub, HID, NVMe padrão...) — nesses o driver de classe é o correto e o fabricante não publica outro |
 
-Peça original (que o catálogo do fabricante do PC lista com ID exato): se houver versão mais nova direto do fabricante da peça, o relatório mostra as duas e recomenda a validada pelo fabricante do PC. Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o driver do fabricante da peça.
+Peça original (que o catálogo do fabricante do PC lista com ID exato) e o fabricante da peça tem versão mais nova:
+
+| Tipo de peça | Vence | Por quê |
+|---|---|---|
+| Wi-Fi, Bluetooth, rede, vídeo | a versão estável mais nova (empate: a do fabricante do PC) | o pacote do PC é o mesmo driver da Intel/Realtek/NVIDIA/AMD repassado, com atraso |
+| Áudio, chipset, Serial IO, Management Engine, controlador de disco, térmico, sensores, touchpad, câmera, biometria, leitor de cartão | a validada pelo fabricante do PC (o relatório mostra a mais nova) | o fabricante do PC ajusta o driver ao modelo e à BIOS |
+| BIOS e firmware | nunca instalados | o programa só avisa a versão instalada e a disponível, com link para a página do fabricante |
+
+Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o driver do fabricante da peça.
 
 ## Como a instalação é protegida
 

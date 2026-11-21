@@ -7,7 +7,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 ### Alterado
 - **Driver do fabricante da peça, não só do PC.** O app identifica quem fabricou cada peça pelo Hardware ID (Intel, Realtek, AMD, NVIDIA, Qualcomm, MediaTek, Broadcom...). O pacote do fabricante do PC só é usado quando o catálogo dele lista aquela peça exata (com `SUBSYS`). Peça trocada (ex.: Wi-Fi Realtek de fábrica substituído por Intel) recebe o driver do fabricante dela, e o relatório avisa. Pacote do PC que bate só pelo chip fica atrás do driver do fabricante da peça, e reempacotadores de terceiros são descartados.
 - **Só versões estáveis:** beta, alpha, preview, pre-release, insider e release candidate são descartados; entre os válidos vale a versão estável mais nova.
-- Lista de drivers e relatório mostram o fabricante da peça e quem publicou o driver.
+- **Peça original com versão mais nova do fabricante da peça:** Wi-Fi, Bluetooth, rede e vídeo ficam com a versão estável mais nova (o pacote do fabricante do PC é o mesmo driver, repassado com atraso); áudio, chipset, controlador de disco, térmico, touchpad, câmera e afins ficam com a versão validada pelo fabricante do PC (ajustada ao modelo), e o relatório mostra a mais nova.
+- **BIOS e firmware só avisam:** a tela de Drivers mostra a versão instalada, a disponível e a data, com botão para a página do fabricante. Nunca são instalados pelo programa.
+- Lista de drivers ("Driver de") e relatório mostram o fabricante da peça e quem publicou o driver.
 - Busca no Catálogo da Microsoft também para peças que o fabricante do PC só reconhece pelo chip.
 
 ## [1.4.0] - 2026-11-16

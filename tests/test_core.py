@@ -160,13 +160,44 @@ class PecaTrocadaEEstavel(unittest.TestCase):
         dp.avaliar(d)
         self.assertEqual(d["melhor"]["source"], "OEM")
 
-    def test_peca_original_validada_pelo_pc_continua_primeiro(self):
+    def test_wifi_original_vale_a_versao_mais_nova_da_intel(self):
         d = self.placa()
         d["cands"] = [self.cand("OEM", "22.200.0.1", level="exato"), self.cand("WU", "23.80.0.3", level="exato", provider="Intel")]
         dp.avaliar(d)
-        self.assertEqual(d["melhor"]["source"], "OEM")
+        self.assertEqual(d["melhor"]["provider"], "Intel")
         self.assertFalse(d["peca_fora_do_catalogo"])
-        self.assertEqual(d["alt_nova"]["provider"], "Intel")   # o relatório mostra que há versão mais nova da Intel
+
+    def test_video_empate_fica_com_o_do_fabricante_do_pc(self):
+        d = self.placa(["PCI\\VEN_8086&DEV_3EA0&SUBSYS_229217AA"])
+        d["cls"] = "DISPLAY"
+        d["cands"] = [self.cand("WU", "31.0.101.2125", level="exato", provider="Intel"), self.cand("OEM", "31.0.101.2125", level="exato")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["source"], "OEM")
+
+    def test_audio_chipset_e_afins_ficam_com_o_validado_pelo_pc(self):
+        for cls, hw in (("MEDIA", "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0257&SUBSYS_17AA2292"), ("SYSTEM", "PCI\\VEN_8086&DEV_9DA3&SUBSYS_229217AA"),
+                        ("SCSIADAPTER", "PCI\\VEN_8086&DEV_9DD3&SUBSYS_229217AA")):
+            d = self.placa([hw])
+            d["cls"] = cls
+            d["cands"] = [self.cand("OEM", "6.0.9049.1", level="exato"),
+                          self.cand("WU", "6.0.9600.1", level="exato", provider="Realtek" if "10EC" in hw else "Intel")]
+            dp.avaliar(d)
+            self.assertEqual(d["melhor"]["source"], "OEM", cls)
+            self.assertEqual(d["alt_nova"]["version"], "6.0.9600.1", cls)   # o relatório mostra a mais nova
+
+    def test_bios_so_avisa(self):
+        e = {"system": {"bios": "N2IET99W (1.77 )"}, "links": [("Suporte Lenovo do modelo", "https://pcsupport.lenovo.com/x")],
+             "sistema": [{"cid": "LEN:n2iuj", "title": "BIOS Update (Utility & Bootable CD)", "category": "BIOS/UEFI",
+                          "version": "1.80", "date": "2026-10-02", "status": "ATUALIZAR", "kind": "firmware"},
+                         {"cid": "LEN:ok", "title": "BIOS", "category": "BIOS", "version": "1.77", "status": "OK", "kind": "firmware"}]}
+        av = dp.avisos_firmware(e)
+        self.assertEqual(len(av), 1)
+        self.assertEqual((av[0]["instalada"], av[0]["disponivel"], av[0]["link"]),
+                         ("N2IET99W (1.77 )", "1.80", "https://pcsupport.lenovo.com/x"))
+        ok, rb, msg = dp.instalar_um(e["sistema"][0])        # e nunca instala, nem pedindo direto
+        self.assertFalse(ok)
+        self.assertIn("não é instalado", msg)
+        self.assertEqual(dp.recomendados({"devices": [], "sistema": e["sistema"]}), [])
 
     def test_terceiros_e_outro_fabricante_de_pc_descartados(self):
         d = self.placa()

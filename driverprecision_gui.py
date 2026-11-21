@@ -66,7 +66,7 @@ class App:
                                                  show="headings", selectmode="none")
         for col, txt, w, anc in (("sel", "", 36, "center"), ("disp", "Peça do computador", 200, "w"),
                                  ("atual", "Versão atual", 115, "w"), ("novo", "Nova versão", 115, "w"),
-                                 ("fonte", "Origem", 130, "w")):
+                                 ("fonte", "Driver de", 130, "w")):
             self.tree.heading(col, text=txt)
             self.tree.column(col, width=w, anchor=anc, stretch=col == "disp")
         self.tree.bind("<Button-1>", self._toggle)
@@ -83,6 +83,8 @@ class App:
         self.btn = ttk.Button(base, text="Verificar agora", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
         self.btn2 = ttk.Button(base, text="Ver relatório completo", command=self.abrir_relatorio)
+        self.btn_bios = ttk.Button(base, text="Página da BIOS", command=self.abrir_bios)
+        self.link_bios = ""
         self.btn_det = ttk.Button(base, text="Mostrar detalhes", command=self._detalhes)
         self.btn_det.pack(side="left")
 
@@ -141,6 +143,7 @@ class App:
     def _ocupado(self, texto: str) -> None:
         self.btn.config(state="disabled")
         self.btn2.pack_forget()
+        self.btn_bios.pack_forget()
         self.lista_frame.pack_forget()
         self.aviso.pack_forget()
         self.msg.config(text=texto, foreground="")
@@ -189,20 +192,25 @@ class App:
             self.itens[iid] = b
             self.marcados.add(iid)
             novo = b.get("version") or b.get("pkg_version") or "?"
-            if b["source"] == "OEM":
-                origem = "Fabricante " + b["source_name"].split(" (")[0]
-            else:  # quem fez o driver (o fabricante da peça), entregue pela Microsoft
+            if b["source"] == "OEM":  # fabricante do PC, pelo catálogo dele
+                origem = b["source_name"].split(" (")[0]
+            else:  # fabricante da peça, entregue pelo Windows Update / Catálogo da Microsoft
                 quem = re.sub(r",? (Inc|Corporation|Corp|Co|Ltd|Semiconductor)\.?.*$", "", b.get("provider") or "", flags=re.I)
-                origem = f"{quem} (via Windows Update)" if quem else {"CAT": "Microsoft (WHQL)", "WU": "Windows Update"}[b["source"]]
+                origem = quem or "Microsoft (WHQL)"
             self.tree.insert("", "end", iid=iid, values=("☑", d["name"], d.get("ver") or "nenhum", novo, origem))
         extras = []
         n_ver = sum(1 for d in e["devices"] if d["status"] in ("VERIFICAR", "GENÉRICO", "SEM DRIVER"))
         if n_ver:
             extras.append(f"{n_ver} item(ns) precisam de conferência técnica e não serão instalados "
                           "automaticamente (veja o relatório).")
-        if any(x.get("status") == "ATUALIZAR" for x in e["sistema"]):
-            extras.append("Há atualização de BIOS/firmware. Por segurança ela não é instalada "
-                          "automaticamente: veja o relatório.")
+        for f in dp.avisos_firmware(e):
+            onde = "instalada " + f["instalada"] + ", " if f["instalada"] else ""
+            extras.append(f"⚠ {'BIOS' if f['bios'] else 'Firmware'} com versão nova: {onde}disponível {f['disponivel']}"
+                          + (f" ({f['data']})" if f["data"] else "") + ". O programa não instala BIOS/firmware: "
+                          "confira na página do fabricante e instale com o carregador conectado.")
+            self.link_bios = self.link_bios or f["link"]
+        if self.link_bios:
+            self.btn_bios.pack(side="right", padx=(0, 10))
         if rec:
             self.msg.config(text=f"Encontramos {len(rec)} driver(s) para instalar ou atualizar.", foreground=AZUL)
             self.lista_frame.pack(fill="both", expand=True, pady=(8, 4))
@@ -281,6 +289,11 @@ class App:
                                                             "Salve seus arquivos. Reiniciar agora?"):
             subprocess.run(["shutdown.exe", "/r", "/t", "10", "/c", "DriverPrecision: concluindo instalação de drivers"],
                            creationflags=dp.NO_WINDOW)
+
+    def abrir_bios(self) -> None:
+        if self.link_bios:
+            import webbrowser
+            webbrowser.open(self.link_bios)
 
     def abrir_relatorio(self) -> None:
         if self.relatorio and os.path.exists(self.relatorio):

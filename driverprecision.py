@@ -874,6 +874,12 @@ def fonte_catalogo(sysinfo: dict, devs: list[dict], limite: int = 150) -> str:
 # --------------------------------------------------------------------------- análise
 
 
+# Peças em que o pacote do fabricante do PC é só o driver do fabricante da peça repassado (e atrasado):
+# vale a versão estável mais nova entre os dois. Nas demais (áudio, chipset, disco, térmico, touchpad, câmera...)
+# o fabricante do PC adapta o driver ao modelo e a versão validada por ele vence.
+CLASSES_MAIS_NOVA_DA_PECA = {"NET", "BLUETOOTH", "DISPLAY"}
+
+
 def _nivel_confianca(c: dict, peca: tuple[str, str] | None, pc_oem: str) -> int | None:
     """0 = fabricante do PC validou ESTA peça (ID exato no catálogo dele); 1 = driver do fabricante da peça;
     2 = fabricante do PC só pelo chip (a placa pode ter sido trocada); None = não serve."""
@@ -903,6 +909,8 @@ def avaliar(d: dict) -> None:
             d["instaveis"] += 1
             continue
         n = _nivel_confianca(c, peca, pc_oem)
+        if n == 0 and d.get("cls") in CLASSES_MAIS_NOVA_DA_PECA:
+            n = 1  # Wi-Fi, Bluetooth, rede e vídeo: concorre de igual com o driver do fabricante da peça
         if n is not None:
             c["confianca"] = n
             validos.append(c)
@@ -1337,6 +1345,21 @@ def ponto_restauracao() -> tuple[bool, str]:
         return "ok" in (out or ""), out or ""
     except Exception as ex:
         return False, str(ex).split(" At line:")[0][:300]
+
+
+def avisos_firmware(e: dict) -> list[dict]:
+    """BIOS/firmware com versão mais nova no catálogo do fabricante do PC. Só aviso: nunca instalado pelo programa."""
+    bios = (e.get("system") or {}).get("bios") or ""
+    link = next((u for _, u in e.get("links") or []), "")
+    out = []
+    for x in e.get("sistema") or []:
+        if x.get("status") != "ATUALIZAR":
+            continue
+        eh_bios = bool(re.search(r"bios", f"{x.get('category')} {x.get('title')}", re.I))
+        out.append({"titulo": x.get("title") or "BIOS/firmware", "bios": eh_bios, "instalada": bios if eh_bios else "",
+                    "disponivel": x.get("version") or x.get("pkg_version") or "?", "data": x.get("date") or "",
+                    "link": link or x.get("readme") or ""})
+    return out
 
 
 def recomendados(e: dict) -> list[tuple[dict, dict]]:
