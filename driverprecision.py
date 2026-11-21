@@ -348,9 +348,19 @@ FABRICANTES_PECA = {
     "Xiaomi": ({"2717"}, set(), r"xiaomi"),
     "Motorola": ({"22B8"}, set(), r"motorola"),
     "Garmin": ({"091E"}, set(), r"garmin"),
+    "SanDisk": ({"0781"}, set(), r"sandisk|western digital"),
+    "ASUS": ({"0B05", "1043"}, {"ASUS", "ATK"}, r"asus"),
+    "Acer": ({"0502", "1025"}, set(), r"\bacer\b"),
+    "MSI": ({"1462", "0DB0"}, {"MSI"}, r"micro-star|\bmsi\b"),
+    "Gigabyte": ({"1458"}, set(), r"gigabyte"),
+    "Kingston": ({"0951"}, set(), r"kingston"),
+    "JMicron": ({"152D"}, set(), r"jmicron"),
+    "Genesys Logic": ({"05E3"}, set(), r"genesys"),
 }
 # como cada fabricante de PC assina pacotes que ele mesmo publica no Windows Update/Catálogo
-PROVEDOR_OEM = {"lenovo": r"lenovo", "dell": r"\bdell\b|alienware", "hp": r"\bhp\b|hewlett"}
+PROVEDOR_OEM = {"lenovo": r"lenovo", "dell": r"\bdell\b|alienware", "hp": r"\bhp\b|hewlett", "asus": r"asus",
+                "acer": r"\bacer\b", "msi": r"micro-star|\bmsi\b", "gigabyte": r"gigabyte", "samsung": r"samsung",
+                "microsoft": r"microsoft", "avell": r"avell", "positivo": r"positivo"}
 
 
 def fabricante_peca(d: dict) -> tuple[str, str] | None:
@@ -435,13 +445,33 @@ def inventario() -> tuple[dict, list[dict]]:
         d["mids"] = hw + [c for c in d["compat"] if re.search(r"(VEN|VID)_[0-9A-Z]{3,4}", c) and c not in hw]
         d["bus"] = bus
         d["name"] = d.get("name") or d.get("devname") or did
-        d["cls"] = (d.get("cls") or "").upper()
+        d["cls"] = (d.get("cls") or "").upper() or classe_pelos_ids(hw + d["compat"])
+        if not d.get("name") or d["name"] == did:  # sem driver o Windows não dá nome: monta um legível
+            fab = fabricante_peca({"hwids": hw})
+            d["name"] = f"{NOME_CLASSE.get(d['cls'], 'Dispositivo')} {fab[0] if fab else ''} (sem driver)".replace("  ", " ")
         inf = (d.get("inf") or "").lower()
         d["inbox"] = bool(inf) and not inf.startswith("oem")
         d["sem_driver"] = d.get("err") in (1, 18, 28, 31, 37, 39, 52) or not inf
         d["cands"] = []
         devs.append(d)
     return sysinfo, devs
+
+
+# classe do aparelho pelos IDs de classe (USB/PCI), para quando ele está sem driver e o Windows não informa
+_CLASSE_POR_ID = [(r"USB\\(COMPAT_VID_[0-9A-F]{4}&)?CLASS_E0", "BLUETOOTH"), (r"USB\\(COMPAT_VID_[0-9A-F]{4}&)?CLASS_0E", "CAMERA"),
+                  (r"USB\\(COMPAT_VID_[0-9A-F]{4}&)?CLASS_07", "PRINTER"), (r"USB\\(COMPAT_VID_[0-9A-F]{4}&)?CLASS_01", "MEDIA"),
+                  (r"USB\\(COMPAT_VID_[0-9A-F]{4}&)?CLASS_03", "HIDCLASS"), (r"USB\\(COMPAT_VID_[0-9A-F]{4}&)?CLASS_02", "NET"),
+                  (r"PCI\\.*CC_02", "NET"), (r"PCI\\.*CC_03", "DISPLAY"), (r"PCI\\.*CC_040[13]", "MEDIA"),
+                  (r"PCI\\.*CC_01", "SCSIADAPTER"), (r"HDAUDIO\\", "MEDIA")]
+NOME_CLASSE = {"BLUETOOTH": "Bluetooth", "CAMERA": "Câmera", "PRINTER": "Impressora", "MEDIA": "Áudio", "HIDCLASS": "Dispositivo de entrada",
+               "NET": "Placa de rede", "DISPLAY": "Placa de vídeo", "SCSIADAPTER": "Controlador de disco"}
+
+
+def classe_pelos_ids(ids: list[str]) -> str:
+    for rx, cls in _CLASSE_POR_ID:
+        if any(re.match(rx, i, re.I) for i in ids):
+            return cls
+    return ""
 
 
 def win_major(sysinfo: dict) -> int:
@@ -951,7 +981,9 @@ def avaliar(d: dict) -> None:
             c["confianca"] = n
             validos.append(c)
     # 1º quem garante que o driver é DESTA peça; dentro do mesmo nível, a versão estável mais nova
-    validos.sort(key=lambda c: (c["confianca"], tuple(-x for x in vtuple(c.get("version"))), PRIORIDADE[c["source"]]))
+    # (pacote sem versão informada só vence se nenhum outro tiver versão: "sem versão" não é "a mais nova")
+    validos.sort(key=lambda c: (c["confianca"], not vtuple(c.get("version")), tuple(-x for x in vtuple(c.get("version"))),
+                                PRIORIDADE[c["source"]]))
     d["melhor"] = validos[0] if validos else None
     d["peca_fora_do_catalogo"] = bool(peca and pc_oem and d.get("oem_consultado") and d["bus"] in ("PCI", "USB", "HDAUDIO", "BTH")
                                       and not any(c["source"] == "OEM" and c.get("level") == "exato" for c in d["cands"]))
@@ -1009,7 +1041,14 @@ def fabricante(sysinfo: dict) -> str:
         return "dell"
     if m.startswith("HP") or "HEWLETT" in m:
         return "hp"
+    for chave, rx in (("asus", r"ASUS"), ("acer", r"ACER"), ("msi", r"MICRO-STAR|\bMSI\b"), ("gigabyte", r"GIGABYTE"),
+                      ("samsung", r"SAMSUNG"), ("microsoft", r"MICROSOFT CORPORATION"), ("avell", r"AVELL"), ("positivo", r"POSITIVO")):
+        if re.search(rx, m):
+            return chave  # sem catálogo público: só serve para reconhecer pacotes da própria marca no Catálogo
     return ""
+
+
+CATALOGOS_OEM = {"lenovo": "fonte_lenovo", "dell": "fonte_dell", "hp": "fonte_hp"}
 
 
 def links_oem(sysinfo: dict) -> list[tuple[str, str]]:
@@ -1042,8 +1081,8 @@ def scan(args) -> dict:
     sistema: list[dict] = []
     f = fabricante(sysinfo)
     log("[2/5] Catálogo oficial do fabricante...")
-    if f and not args.sem_oem:
-        fn = {"lenovo": fonte_lenovo, "dell": fonte_dell, "hp": fonte_hp}[f]
+    if f in CATALOGOS_OEM and not args.sem_oem:
+        fn = globals()[CATALOGOS_OEM[f]]
         try:
             fontes["OEM " + f.upper()] = fn(sysinfo, devs, sistema)
         except Exception as e:

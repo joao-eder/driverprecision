@@ -242,6 +242,42 @@ class PecaTrocadaEEstavel(unittest.TestCase):
         self.assertEqual(d["melhor"]["provider"], "HP")
         self.assertTrue(dp._alvo_catalogo(dict(d, bus="USBPRINT")))   # impressora USB sem driver também é procurada
 
+    def test_pacote_sem_versao_nao_vence_versao_conhecida(self):
+        # caso real (ASUS Vivobook M1502IA): Bluetooth Intel sem driver; o Windows Update ofereceu um pacote sem versão
+        # (de 2015) e o Catálogo, o 22.200.0.2. Antes o "sem versão" vencia.
+        d = dev(["USB\\VID_8087&PID_0A2B&REV_0010", "USB\\VID_8087&PID_0A2B"],
+                ["USB\\COMPAT_VID_8087&CLASS_E0&SUBCLASS_01&PROT_01", "USB\\CLASS_E0"], inf="", cls="", err=28)
+        d["cands"] = [self.cand("WU", "", level="exato", provider="Intel Corporation",
+                                title="Intel Corporation - Bluetooth Controller - Intel(R) Wireless"),
+                      self.cand("CAT", "22.200.0.2", level="exato", provider="Intel Corporation",
+                                title="Intel Corporation - Bluetooth - 22.200.0.2")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["version"], "22.200.0.2")
+        self.assertEqual(d["status"], "INSTALAR")
+        so = dev(["USB\\VID_8087&PID_0A2B"], inf="", err=28)      # se só existir o sem versão, ele ainda serve
+        so["cands"] = [dict(d["cands"][0])]
+        dp.avaliar(so)
+        self.assertEqual(so["melhor"]["source"], "WU")
+
+    def test_classe_deduzida_quando_esta_sem_driver(self):
+        self.assertEqual(dp.classe_pelos_ids(["USB\\COMPAT_VID_8087&CLASS_E0&SUBCLASS_01"]), "BLUETOOTH")
+        self.assertEqual(dp.classe_pelos_ids(["PCI\\VEN_8086&DEV_24FD&CC_028000"]), "NET")
+        self.assertEqual(dp.classe_pelos_ids(["PCI\\VEN_1002&CC_030000"]), "DISPLAY")
+        self.assertEqual(dp.classe_pelos_ids(["USB\\CLASS_0E&SUBCLASS_01"]), "CAMERA")
+        self.assertEqual(dp.classe_pelos_ids(["USB\\CLASS_07"]), "PRINTER")
+        self.assertEqual(dp.classe_pelos_ids(["ACPI\\PNP0C0A"]), "")
+
+    def test_asus_reconhecida_e_pacote_dela_aceito(self):
+        self.assertEqual(dp.fabricante({"mfr": "ASUSTeK COMPUTER INC."}), "asus")
+        self.assertNotIn("asus", dp.CATALOGOS_OEM)                    # sem catálogo público: não tenta baixar um
+        self.assertEqual(dp.fabricante_peca(dev(["ACPI\\ASUS2018"]))[0], "ASUS")
+        self.assertEqual(dp.fabricante_peca(dev(["USB\\VID_0781&PID_5567"]))[0], "SanDisk")
+        d = dev(["ACPI\\VEN_ELAN&DEV_1203"], inf="oem3.inf", cls="HIDCLASS", ver="16.0.0.20")
+        d.update(pc_oem="asus", oem_consultado=False)
+        d["cands"] = [self.cand("CAT", "16.0.0.31", level="exato", provider="ASUSTek COMPUTER INC.")]
+        dp.avaliar(d)                                                   # touchpad ELAN com pacote da ASUS: serve
+        self.assertEqual(d["status"], "ATUALIZAR")
+
     def test_estavel_nao_confunde_palavras(self):
         for t in ("Realtek Audio Driver", "Intel Graphics 31.0.101.5590", "AMD Chipset Software", "Precision Touchpad"):
             self.assertTrue(dp.estavel({"title": t}), t)

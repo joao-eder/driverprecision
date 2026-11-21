@@ -391,6 +391,9 @@ SONDAS = [
     ("Intel: DSA", "https://dsadata.intel.com/"),
     ("Intel: centro de downloads (Wi-Fi)", "https://www.intel.com/content/www/us/en/download/19351/windows-10-and-windows-11-wi-fi-drivers-for-intel-wireless-adapters.html"),
     ("Realtek: downloads", "https://www.realtek.com/Download/List?cate_id=593"),
+    ("ASUS: sistemas do modelo M1502IA", "https://www.asus.com/support/api/product.asmx/GetPDOS?website=global&model=M1502IA&pdhashedid="),
+    ("ASUS: drivers do M1502IA (Win11 64)", "https://www.asus.com/support/api/product.asmx/GetPDDrivers?website=global&model=M1502IA&osid=52&pdhashedid="),
+    ("ASUS: BIOS do M1502IA", "https://www.asus.com/support/api/product.asmx/GetPDBIOS?website=global&model=M1502IA&pdhashedid="),
 ]
 
 

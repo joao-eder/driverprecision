@@ -10,6 +10,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - **Peça original com versão mais nova do fabricante da peça:** Wi-Fi, Bluetooth, rede e vídeo ficam com a versão estável mais nova (o pacote do fabricante do PC é o mesmo driver, repassado com atraso); áudio, chipset, controlador de disco, térmico, touchpad, câmera e afins ficam com a versão validada pelo fabricante do PC (ajustada ao modelo), e o relatório mostra a mais nova.
 - **BIOS e firmware só avisam:** a tela de Drivers mostra a versão instalada, a disponível e a data, com botão para a página do fabricante. Nunca são instalados pelo programa.
 - Lista de drivers ("Driver de") e relatório mostram o fabricante da peça e quem publicou o driver.
+- Fabricantes de PC sem catálogo público (ASUS, Acer, MSI, Gigabyte, Samsung, Positivo, Avell...) são reconhecidos: pacotes da própria marca publicados no Catálogo da Microsoft (touchpad, controle do sistema) são aceitos.
+- **Corrigido:** pacote sem versão informada vencia o de versão conhecida (caso real: Bluetooth Intel recebia um pacote de 2015 em vez do 22.200.0.2). Agora "sem versão" só vale se for o único.
+- **Corrigido:** aparelho sem driver ficava sem tipo (o Windows não informa); agora o tipo e um nome legível saem dos IDs de classe ("Bluetooth Intel (sem driver)"), e a regra por tipo de peça vale para ele.
 - **Aparelhos conectados:** periféricos de mais de 30 marcas (Logitech, HP, Epson, Canon, Brother, Razer, Wacom...) têm o fabricante identificado; impressoras USB/de rede e aparelhos Bluetooth LE sem driver também são procurados; aparelhos da própria Microsoft (controle Xbox, Surface) aceitam o driver da Microsoft.
 - Busca no Catálogo da Microsoft também para peças que o fabricante do PC só reconhece pelo chip.
 
