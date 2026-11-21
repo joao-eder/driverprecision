@@ -2,6 +2,14 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.1] - 2026-11-21
+
+### Alterado
+- **Driver do fabricante da peça, não só do PC.** O app identifica quem fabricou cada peça pelo Hardware ID (Intel, Realtek, AMD, NVIDIA, Qualcomm, MediaTek, Broadcom...). O pacote do fabricante do PC só é usado quando o catálogo dele lista aquela peça exata (com `SUBSYS`). Peça trocada (ex.: Wi-Fi Realtek de fábrica substituído por Intel) recebe o driver do fabricante dela, e o relatório avisa. Pacote do PC que bate só pelo chip fica atrás do driver do fabricante da peça, e reempacotadores de terceiros são descartados.
+- **Só versões estáveis:** beta, alpha, preview, pre-release, insider e release candidate são descartados; entre os válidos vale a versão estável mais nova.
+- Lista de drivers e relatório mostram o fabricante da peça e quem publicou o driver.
+- Busca no Catálogo da Microsoft também para peças que o fabricante do PC só reconhece pelo chip.
+
 ## [1.4.0] - 2026-11-16
 
 ### Adicionado
@@ -98,6 +106,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.4.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.1
 [1.4.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.0
 [1.3.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.3
 [1.3.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.2

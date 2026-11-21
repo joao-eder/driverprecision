@@ -285,6 +285,65 @@ def especificidade(hwid: str) -> str:
     return "chip"
 
 
+def especificidade_pacote(pkg_id: str) -> str:
+    """Especificidade do ID como o FABRICANTE DO PC o listou (o casamento com o aparelho sempre devolve o ID longo).
+    Pacote que cita só o chip (VEN&DEV, sem SUBSYS) não comprova que a placa instalada é a original do modelo."""
+    u = pkg_id.strip().upper().rstrip("*")
+    if "\\" not in u:  # Lenovo às vezes lista sem barramento
+        u = ("USB\\" if "VID_" in u else "PCI\\") + u
+    return especificidade(u)
+
+
+# --------------------------------------------------------------------------- fabricante da peça (não do PC)
+
+# PCI/HDAUDIO (VEN_), USB (VID_) e ACPI: quem fabricou o chip, e como ele assina o driver ("provider")
+FABRICANTES_PECA = {
+    "Intel": ({"8086", "8087"}, {"INT", "INTC"}, r"\bintel\b"),
+    "Realtek": ({"10EC", "0BDA"}, {"RTK", "RTL"}, r"realtek"),
+    "AMD": ({"1022", "1002"}, {"AMDI", "AMD", "ATI"}, r"advanced micro devices|\bamd\b|\bati\b"),
+    "NVIDIA": ({"10DE"}, {"NVDA"}, r"nvidia"),
+    "Qualcomm": ({"168C", "17CB", "0CF3", "1969"}, {"QCOM"}, r"qualcomm|atheros|killer|rivet"),
+    "MediaTek": ({"14C3", "0E8D", "1814"}, {"MTK"}, r"mediatek|ralink"),
+    "Broadcom": ({"14E4", "0A5C"}, {"BCM"}, r"broadcom"),
+    "Synaptics": ({"06CB", "138A", "14F1"}, {"SYNA"}, r"synaptics|conexant|validity"),
+    "ELAN": ({"04F3"}, {"ELAN"}, r"\belan\b"),
+    "Goodix": ({"27C6"}, {"GDIX"}, r"goodix"),
+    "Cirrus Logic": ({"1013"}, {"CLSA"}, r"cirrus"),
+    "ASMedia": ({"1B21"}, set(), r"asmedia"),
+    "Renesas": ({"1912"}, set(), r"renesas"),
+    "Marvell": ({"11AB", "1B4B"}, set(), r"marvell"),
+}
+# como cada fabricante de PC assina pacotes que ele mesmo publica no Windows Update/Catálogo
+PROVEDOR_OEM = {"lenovo": r"lenovo", "dell": r"\bdell\b|alienware", "hp": r"\bhp\b|hewlett"}
+
+
+def fabricante_peca(d: dict) -> tuple[str, str] | None:
+    """(nome, regex do provider) de quem fabricou o chip desta peça, pelos Hardware IDs."""
+    for h in d.get("hwids", []):
+        m = re.search(r"(?:\\|&)(?:VEN|VID)_([0-9A-F]{4})", h)
+        if m:
+            for nome, (ids, _, rx) in FABRICANTES_PECA.items():
+                if m.group(1) in ids:
+                    return nome, rx
+            return None
+        m = re.match(r"ACPI\\(?:VEN_)?([A-Z]{3,4})", h)
+        if m:
+            for nome, (_, acpi, rx) in FABRICANTES_PECA.items():
+                if any(m.group(1).startswith(a) for a in acpi):
+                    return nome, rx
+            return None
+    return None
+
+
+# só versões finais: nada de beta, alpha, preview, insider ou release candidate
+NAO_ESTAVEL = re.compile(r"\b(beta|alpha|preview|pre-?release|insider|early access|release candidate|rc\d*|eap)\b", re.I)
+
+
+def estavel(c: dict) -> bool:
+    texto = " ".join(str(c.get(k) or "") for k in ("title", "pkg_version", "version", "category", "products", "classif"))
+    return not NAO_ESTAVEL.search(texto)
+
+
 # --------------------------------------------------------------------------- inventário
 
 PS_INVENTARIO = r"""
@@ -468,7 +527,8 @@ def fonte_lenovo(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
             hit, key = hits[0]
             v = drv_ver.get(key) or next((drv_ver[i] for _, i in hits if drv_ver.get(i)), "")
             d["cands"].append(dict(cand_base, version=limpa_ver(v or pver, d.get("ver")), version_is_pkg=not v,
-                                   match_id=hit, level="exato" if hit in d["hwids"] else "modelo"))
+                                   match_id=hit,
+                                   level=("exato" if especificidade_pacote(key) == "exato" else "chip") if hit in d["hwids"] else "modelo"))
             n += 1
     return f"ok - {len(pkgs)} pacotes do modelo, {n} associações"
 
@@ -629,7 +689,8 @@ def fonte_hp(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
             for r in refs:
                 if r in sp and (d["id"], r) not in vistos:
                     vistos.add((d["id"], r))
-                    d["cands"].append(dict(cand(sp[r], r), match_id=hit, level=especificidade(hit)))
+                    nivel = "exato" if especificidade(hit) == "exato" and especificidade_pacote(hid) == "exato" else "chip"
+                    d["cands"].append(dict(cand(sp[r], r), match_id=hit, level=nivel))
                     n += 1
     for spid, ui in sp.items():
         if re.search(r"^BIOS", ui.findtext("Category") or "", re.I):
@@ -737,8 +798,8 @@ def _alvo_catalogo(d: dict) -> bool:
         return False
     if d["sem_driver"]:
         return True
-    if any(c["source"] == "OEM" for c in d["cands"]):
-        return False
+    if any(c["source"] == "OEM" and c.get("level") == "exato" for c in d["cands"]):
+        return False  # o fabricante do PC já validou ESTA peça; só pelo chip não basta (a placa pode ter sido trocada)
     if d["inbox"] and driver_de_classe(d):
         return False
     return not d["inbox"] or d["cls"] in CLASSES_CRITICAS or d["bus"] in ("PCI", "ACPI", "HDAUDIO", "INTELAUDIO")
@@ -813,13 +874,43 @@ def fonte_catalogo(sysinfo: dict, devs: list[dict], limite: int = 150) -> str:
 # --------------------------------------------------------------------------- análise
 
 
+def _nivel_confianca(c: dict, peca: tuple[str, str] | None, pc_oem: str) -> int | None:
+    """0 = fabricante do PC validou ESTA peça (ID exato no catálogo dele); 1 = driver do fabricante da peça;
+    2 = fabricante do PC só pelo chip (a placa pode ter sido trocada); None = não serve."""
+    if c["source"] == "OEM":
+        return 0 if c.get("level") == "exato" else 2
+    prov = c.get("provider") or ""
+    if re.fullmatch(r"microsoft( corporation)?", prov.strip(), re.I):
+        return None  # genérico
+    if peca is None:  # fabricante do chip desconhecido: vale a regra de antes (ID exato)
+        return 1
+    if re.search(peca[1], prov, re.I):
+        return 1
+    if pc_oem and re.search(PROVEDOR_OEM.get(pc_oem, "$^"), prov, re.I):
+        return 2  # pacote do fabricante do PC publicado na Microsoft, para este mesmo ID
+    return None  # terceiro que reempacota driver de outro fabricante: não
+
+
 def avaliar(d: dict) -> None:
-    validos = [c for c in d["cands"] if c["source"] != "CAT" or c["level"] == "exato"]
-    # nada de genérico: drivers Microsoft só valem quando são o próprio driver de classe
-    validos = [c for c in validos if not (c["source"] == "WU" and re.fullmatch(r"microsoft", c.get("provider") or "", re.I))]
-    validos.sort(key=lambda c: (PRIORIDADE[c["source"]], 0 if c["level"] == "exato" else 1,
-                                tuple(-x for x in vtuple(c.get("version")))))
+    peca = fabricante_peca(d)
+    d["fabricante_peca"] = peca[0] if peca else ""
+    pc_oem = d.get("pc_oem") or ""
+    validos, d["instaveis"] = [], 0
+    for c in d["cands"]:
+        if c["source"] == "CAT" and c["level"] != "exato":
+            continue
+        if not estavel(c):  # só versões finais
+            d["instaveis"] += 1
+            continue
+        n = _nivel_confianca(c, peca, pc_oem)
+        if n is not None:
+            c["confianca"] = n
+            validos.append(c)
+    # 1º quem garante que o driver é DESTA peça; dentro do mesmo nível, a versão estável mais nova
+    validos.sort(key=lambda c: (c["confianca"], tuple(-x for x in vtuple(c.get("version"))), PRIORIDADE[c["source"]]))
     d["melhor"] = validos[0] if validos else None
+    d["peca_fora_do_catalogo"] = bool(peca and pc_oem and d.get("oem_consultado") and d["bus"] in ("PCI", "USB", "HDAUDIO", "BTH")
+                                      and not any(c["source"] == "OEM" and c.get("level") == "exato" for c in d["cands"]))
     d["alternativas"] = [c for c in d["cands"] if c is not d["melhor"]]
     atual = d.get("ver")
     b = d["melhor"]
@@ -850,6 +941,9 @@ def avaliar(d: dict) -> None:
         elif c > 0:
             d["status"] = "ATUALIZAR"
             d["motivo"] = f"{atual} → {b.get('version')}"
+            if b["source"] != "OEM" and d.get("peca_fora_do_catalogo"):
+                d["motivo"] += (f" (peça não consta no catálogo do fabricante do PC — trocada ou opcional; "
+                                f"driver do fabricante da peça, {d['fabricante_peca']})")
         else:
             d["status"] = "OK"
             d["motivo"] = "instalado é igual ou mais novo que o da fonte"
@@ -928,7 +1022,9 @@ def scan(args) -> dict:
             fontes["MS Update Catalog"] = f"falhou: {e}"
         log("      " + fontes["MS Update Catalog"])
     log("[5/5] Analisando...")
+    oem_ok = any(k.startswith("OEM ") and str(v).startswith("ok") for k, v in fontes.items())
     for d in devs:
+        d["pc_oem"], d["oem_consultado"] = f, oem_ok
         avaliar(d)
     devs.sort(key=lambda d: (ORDEM[d["status"]], d["cls"], d["name"]))
     estado = {"gerado": dt.datetime.now().isoformat(timespec="seconds"), "versao": VERSION, "system": sysinfo,
@@ -983,7 +1079,8 @@ def relatorio_html(e: dict) -> str:
             return '<span class="mut">—</span>'
         lvl = {"exato": "HWID exato", "modelo": "modelo", "chip": "só chip"}.get(c.get("level"), c.get("level"))
         link = f' <a href="{_e(c.get("url"))}" target="_blank" rel="noopener">abrir</a>' if c.get("url") else ""
-        return (f'<div class="{"best" if principal else "alt"}"><span class="src src-{_e(c["source"])}">{_e(c["source_name"])}</span> '
+        prov = f' · driver de {_e(c["provider"])}' if c.get("provider") and c["source"] != "OEM" else ""
+        return (f'<div class="{"best" if principal else "alt"}"><span class="src src-{_e(c["source"])}">{_e(c["source_name"])}{prov}</span> '
                 f'<b>{_e(c.get("version") or c.get("pkg_version") or "?")}</b> <span class="mut">{_e(c.get("date"))} · {_e(lvl)}</span><br>'
                 f'{_e(c.get("title"))}{link}<br><code>{_e(c["cid"])}</code></div>')
 
@@ -992,12 +1089,18 @@ def relatorio_html(e: dict) -> str:
         alts = d.get("alternativas") or []
         alt_html = "".join(cand_html(a) for a in alts[:4])
         extra = ""
+        if d.get("peca_fora_do_catalogo"):
+            extra += (f'<div class="warn">Peça não consta no catálogo do fabricante do PC (trocada ou opcional): '
+                      f'vale o driver do fabricante da peça ({_e(d.get("fabricante_peca"))}).</div>')
+        if d.get("instaveis"):
+            extra += f'<div class="mut">{d["instaveis"]} versão(ões) beta/preview descartada(s).</div>'
         if d.get("alt_nova"):
             extra = f'<div class="warn">Há versão mais nova fora do OEM ({_e(d["alt_nova"]["version"])}), não validada pelo fabricante do PC.</div>'
         linhas.append(
             f'<tr class="row st-{_e(d["status"]).replace(" ", "")}" data-st="{_e(d["status"])}">'
             f'<td><span class="pill st-{_e(d["status"]).replace(" ", "")}">{_e(d["status"])}</span></td>'
-            f'<td><b>{_e(d["name"])}</b><br><span class="mut">{_e(d["cls"])} · {_e(d.get("mfr"))}</span>'
+            f'<td><b>{_e(d["name"])}</b><br><span class="mut">{_e(d["cls"])} · {_e(d.get("mfr"))}'
+            f'{" · peça: " + _e(d["fabricante_peca"]) if d.get("fabricante_peca") else ""}</span>'
             f'<details><summary>Hardware IDs</summary><code>{"<br>".join(_e(h) for h in d["hwids"][:6])}</code></details></td>'
             f'<td>{_e(d.get("ver") or "—")}<br><span class="mut">{_e(d.get("date"))} · {_e(d.get("provider"))}<br>{_e(d.get("inf"))}'
             f'{" (inbox)" if d.get("inbox") else ""}</span></td>'
@@ -1047,7 +1150,9 @@ th{{font-size:12px;color:var(--mut);font-weight:600}}.pill{{display:inline-block
 <li>{_e(s.get('os'))} {_e(s.get('display'))} · build {_e(s.get('build'))}.{_e(s.get('ubr'))} · {_e(s.get('arch'))}</li></ul></div>
 <div class="box"><b>Fontes consultadas</b><ul>{fontes}</ul></div>
 <div class="box"><b>Suporte do fabricante</b><ul>{links or '<li class="mut">—</li>'}</ul>
-<div class="mut">Prioridade: catálogo do fabricante do PC → Windows Update → MS Catalog (só HWID exato).</div></div>
+<div class="mut">Regras: 1) driver do fabricante DA PEÇA — o do fabricante do PC só quando o catálogo dele lista
+esta peça exata (placa trocada usa o driver de quem a fabricou); 2) só versões estáveis (beta/preview/insider
+descartados); 3) entre os válidos, a versão estável mais nova.</div></div>
 </div>
 <div class="cards">{cards}</div>
 <div class="flt"><label><input type="checkbox" id="soAcao" checked> mostrar só o que exige ação</label></div>

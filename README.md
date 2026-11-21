@@ -141,6 +141,11 @@ Opções do scan: `--sem-oem`, `--sem-wu`, `--sem-catalogo`, `--nao-abrir`.
    - **Catalog:** a busca do site é textual, então cada resultado é conferido na página do pacote. O Hardware ID do aparelho tem que estar **literalmente** em "Supported Hardware IDs". Se não estiver, ou se o provedor for a própria Microsoft (genérico), o pacote é descartado. Resultado que só bate no chip (`VEN&DEV` sem `SUBSYS`) não é recomendado.
    - **PC montado ou marca sem catálogo público:** usa as fontes 2 e 3 e mostra a placa-mãe para você buscar no site do fabricante dela.
 
+   **Duas leis valem para toda verificação:**
+
+   - **O driver é do fabricante da PEÇA, não só do PC.** O fabricante do chip sai do próprio Hardware ID (`VEN_8086` = Intel, `VEN_10EC` = Realtek, `VEN_1022` = AMD, `VEN_10DE` = NVIDIA...). O pacote do fabricante do PC só vale quando o catálogo dele lista **esta peça exata** (ID com `SUBSYS`): aí ele validou essa placa naquele modelo. Se a peça foi trocada — ex.: notebook que veio com Wi-Fi Realtek e recebeu uma placa Intel — o catálogo do PC não a reconhece, e o app usa o driver publicado pelo **fabricante da peça** (Intel), entregue pelo Windows Update ou pelo Catálogo da Microsoft. Pacote do PC que bate só pelo chip fica atrás do driver do fabricante da peça. Pacotes de terceiros que reempacotam driver de outro fabricante são descartados.
+   - **Só versões estáveis.** Nada com beta, alpha, preview, pre-release, insider ou release candidate no nome, na versão ou no produto. Entre os drivers válidos, vale a versão estável mais nova.
+
 3. **Status no relatório**
 
 | Status | Significado |
@@ -152,7 +157,7 @@ Opções do scan: `--sem-oem`, `--sem-wu`, `--sem-catalogo`, `--nao-abrir`.
 | GENÉRICO | inbox em classe crítica (vídeo, rede, áudio...) e nenhuma fonte publica driver específico |
 | OK | igual ou mais novo, ou driver de classe padrão do Windows (USB hub, HID, NVMe padrão...) — nesses o driver de classe é o correto e o fabricante não publica outro |
 
-Se o fabricante do PC tiver driver e houver outro mais novo fora dele (ex.: direto da Intel no Catalog), o relatório mostra os dois, mas recomenda o do fabricante.
+Peça original (que o catálogo do fabricante do PC lista com ID exato): se houver versão mais nova direto do fabricante da peça, o relatório mostra as duas e recomenda a validada pelo fabricante do PC. Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o driver do fabricante da peça.
 
 ## Como a instalação é protegida
 

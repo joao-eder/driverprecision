@@ -10,6 +10,7 @@ import argparse
 import ctypes
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -188,8 +189,11 @@ class App:
             self.itens[iid] = b
             self.marcados.add(iid)
             novo = b.get("version") or b.get("pkg_version") or "?"
-            origem = {"CAT": "Microsoft (WHQL)", "WU": "Windows Update"}.get(
-                b["source"], "Fabricante " + b["source_name"].split(" (")[0])
+            if b["source"] == "OEM":
+                origem = "Fabricante " + b["source_name"].split(" (")[0]
+            else:  # quem fez o driver (o fabricante da peça), entregue pela Microsoft
+                quem = re.sub(r",? (Inc|Corporation|Corp|Co|Ltd|Semiconductor)\.?.*$", "", b.get("provider") or "", flags=re.I)
+                origem = f"{quem} (via Windows Update)" if quem else {"CAT": "Microsoft (WHQL)", "WU": "Windows Update"}[b["source"]]
             self.tree.insert("", "end", iid=iid, values=("☑", d["name"], d.get("ver") or "nenhum", novo, origem))
         extras = []
         n_ver = sum(1 for d in e["devices"] if d["status"] in ("VERIFICAR", "GENÉRICO", "SEM DRIVER"))

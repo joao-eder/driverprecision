@@ -113,6 +113,90 @@ class Avaliacao(unittest.TestCase):
         self.assertIsNone(d["melhor"])
 
 
+class PecaTrocadaEEstavel(unittest.TestCase):
+    """Leis: driver do FABRICANTE DA PEÇA (não só do PC) e só versões estáveis."""
+    cand = Avaliacao.cand
+    AX210 = ["PCI\\VEN_8086&DEV_2725&SUBSYS_00248086&REV_1A", "PCI\\VEN_8086&DEV_2725&SUBSYS_00248086",
+             "PCI\\VEN_8086&DEV_2725&CC_028000", "PCI\\VEN_8086&DEV_2725"]
+
+    def placa(self, hw=None, **kw):
+        d = dev(hw or self.AX210, inf="oem12.inf", cls="NET", ver="22.100.0.3")
+        d.update(pc_oem="lenovo", oem_consultado=True, **kw)
+        return d
+
+    def test_fabricante_da_peca_pelo_hardware_id(self):
+        self.assertEqual(dp.fabricante_peca(dev(self.AX210))[0], "Intel")
+        self.assertEqual(dp.fabricante_peca(dev(["PCI\\VEN_10EC&DEV_C822&SUBSYS_C82310EC"]))[0], "Realtek")
+        self.assertEqual(dp.fabricante_peca(dev(["HDAUDIO\\FUNC_01&VEN_10EC&DEV_0257&SUBSYS_17AA2292"]))[0], "Realtek")
+        self.assertEqual(dp.fabricante_peca(dev(["USB\\VID_8087&PID_0032&REV_0000"]))[0], "Intel")
+        self.assertEqual(dp.fabricante_peca(dev(["ACPI\\VEN_INT&DEV_34BB"]))[0], "Intel")
+        self.assertEqual(dp.fabricante_peca(dev(["ACPI\\ELAN0001"]))[0], "ELAN")
+        self.assertIsNone(dp.fabricante_peca(dev(["PCI\\VEN_ABCD&DEV_0001"])))
+
+    def test_pacote_do_pc_so_pelo_chip_nao_e_exato(self):
+        self.assertEqual(dp.especificidade_pacote("VEN_8086&DEV_2725"), "chip")
+        self.assertEqual(dp.especificidade_pacote("PCI\\VEN_8086&DEV_2725&SUBSYS_00248086"), "exato")
+        self.assertEqual(dp.especificidade_pacote("USB\\VID_8087&PID_0032"), "exato")
+
+    def test_realtek_trocada_por_intel_usa_driver_da_intel(self):
+        # catálogo Lenovo só tinha a Realtek original: nada casa; o Windows Update oferece o driver da Intel
+        d = self.placa()
+        d["cands"] = [self.cand("WU", "23.80.0.3", level="exato", provider="Intel"),
+                      self.cand("CAT", "23.90.0.1", level="exato", provider="ReempacotadorQualquer")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["provider"], "Intel")
+        self.assertEqual(d["status"], "ATUALIZAR")
+        self.assertIn("fabricante da peça, Intel", d["motivo"])
+
+    def test_mesmo_chip_com_pacote_do_pc_so_por_chip_prefere_o_fabricante_da_peca(self):
+        d = self.placa()
+        d["cands"] = [self.cand("OEM", "22.200.0.1", level="chip"), self.cand("CAT", "23.80.0.3", level="exato", provider="Intel")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["source"], "CAT")
+
+    def test_so_pacote_do_pc_por_chip_ainda_serve(self):
+        d = self.placa()
+        d["cands"] = [self.cand("OEM", "22.200.0.1", level="chip")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["source"], "OEM")
+
+    def test_peca_original_validada_pelo_pc_continua_primeiro(self):
+        d = self.placa()
+        d["cands"] = [self.cand("OEM", "22.200.0.1", level="exato"), self.cand("WU", "23.80.0.3", level="exato", provider="Intel")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["source"], "OEM")
+        self.assertFalse(d["peca_fora_do_catalogo"])
+        self.assertEqual(d["alt_nova"]["provider"], "Intel")   # o relatório mostra que há versão mais nova da Intel
+
+    def test_terceiros_e_outro_fabricante_de_pc_descartados(self):
+        d = self.placa()
+        d["cands"] = [self.cand("CAT", "30.0.0.0", level="exato", provider="Dell"),
+                      self.cand("CAT", "31.0.0.0", level="exato", provider="DriverPack Solutions")]
+        dp.avaliar(d)
+        self.assertIsNone(d["melhor"])
+
+    def test_pacote_do_proprio_fabricante_do_pc_no_catalogo_serve_depois_do_da_peca(self):
+        d = self.placa()
+        d["cands"] = [self.cand("CAT", "23.90.0.0", level="exato", provider="Lenovo"),
+                      self.cand("WU", "23.80.0.3", level="exato", provider="Intel Corporation")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["provider"], "Intel Corporation")
+
+    def test_so_versao_estavel(self):
+        d = self.placa()
+        d["cands"] = [self.cand("WU", "24.0.0.1", level="exato", provider="Intel", title="Intel - Net - 24.0.0.1 Beta"),
+                      self.cand("CAT", "23.99.0.1", level="exato", provider="Intel", products="Windows Insider Pre-Release"),
+                      self.cand("CAT", "23.98.0.1", level="exato", provider="Intel", title="Intel Wi-Fi Driver Preview"),
+                      self.cand("WU", "23.80.0.3", level="exato", provider="Intel", title="Intel - Net - 23.80.0.3")]
+        dp.avaliar(d)
+        self.assertEqual(d["melhor"]["version"], "23.80.0.3")
+        self.assertEqual(d["instaveis"], 3)
+
+    def test_estavel_nao_confunde_palavras(self):
+        for t in ("Realtek Audio Driver", "Intel Graphics 31.0.101.5590", "AMD Chipset Software", "Precision Touchpad"):
+            self.assertTrue(dp.estavel({"title": t}), t)
+
+
 class ModoAutomatico(unittest.TestCase):
     def test_recomendados_so_o_que_e_seguro(self):
         mk = Avaliacao.cand
