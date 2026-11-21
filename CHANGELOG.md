@@ -13,6 +13,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 - Fabricantes de PC sem catálogo público (ASUS, Acer, MSI, Gigabyte, Samsung, Positivo, Avell...) são reconhecidos: pacotes da própria marca publicados no Catálogo da Microsoft (touchpad, controle do sistema) são aceitos.
 - **Corrigido:** pacote sem versão informada vencia o de versão conhecida (caso real: Bluetooth Intel recebia um pacote de 2015 em vez do 22.200.0.2). Agora "sem versão" só vale se for o único.
 - **Corrigido:** aparelho sem driver ficava sem tipo (o Windows não informa); agora o tipo e um nome legível saem dos IDs de classe ("Bluetooth Intel (sem driver)"), e a regra por tipo de peça vale para ele.
+- **Corrigido (linha de comando):** o "SIM" enviado pelo PowerShell não era aceito (caractere invisível no começo); sem resposta, o programa terminava com erro do Python em vez de cancelar. Sem ponto de restauração, mostra como ligar a Proteção do sistema.
 - **Aparelhos conectados:** periféricos de mais de 30 marcas (Logitech, HP, Epson, Canon, Brother, Razer, Wacom...) têm o fabricante identificado; impressoras USB/de rede e aparelhos Bluetooth LE sem driver também são procurados; aparelhos da própria Microsoft (controle Xbox, Surface) aceitam o driver da Microsoft.
 - Busca no Catálogo da Microsoft também para peças que o fabricante do PC só reconhece pelo chip.
 

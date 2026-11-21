@@ -1472,6 +1472,17 @@ def instalar_lista(cs: list[dict], progresso=None) -> dict:
     return res
 
 
+def confirma(pergunta: str) -> bool:
+    """Lê SIM do teclado ou de um pipe. Aceita o caractere invisível (BOM) que o PowerShell põe no começo;
+    sem resposta (fim da entrada) conta como NÃO, sem erro."""
+    try:
+        r = input(pergunta)
+    except EOFError:
+        log("(sem resposta: cancelado)")
+        return False
+    return r.strip().lstrip("\ufeff\u200b").strip().upper() == "SIM"
+
+
 def cmd_instalar(args) -> None:
     if not is_admin():
         sys.exit("Instalar exige terminal como Administrador.")
@@ -1482,12 +1493,15 @@ def cmd_instalar(args) -> None:
     log("Será instalado:")
     for c in cs:
         log(f"  - {c['cid']}  {c['title']}  v{c.get('version') or c.get('pkg_version')}  [{c['source_name']}]")
-    if not args.sim and input("\nDigite SIM para continuar: ").strip().upper() != "SIM":
+    if not args.sim and not confirma("\nDigite SIM para continuar: "):
         sys.exit("Cancelado.")
     log("Criando ponto de restauração...")
     ok, msg = ponto_restauracao()
     log("  " + ("criado" if ok else f"não foi possível: {msg}"))
-    if not ok and not args.sim and input("Continuar sem ponto de restauração? (SIM/não): ").strip().upper() != "SIM":
+    if not ok:
+        log("  Dica: a Proteção do sistema parece desligada. Ligue em Escritório > Segurança > 'Proteção do sistema' "
+            "(ou Painel de Controle > Sistema > Proteção do sistema) para ter como voltar atrás.")
+    if not ok and not args.sim and not confirma("Continuar sem ponto de restauração? (SIM/não): "):
         sys.exit("Cancelado.")
     r = instalar_lista(cs)
     log(f"\nConcluído: {len(r['ok'])} instalados, {len(r['falha'])} com falha."

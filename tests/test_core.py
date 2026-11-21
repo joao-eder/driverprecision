@@ -283,6 +283,23 @@ class PecaTrocadaEEstavel(unittest.TestCase):
             self.assertTrue(dp.estavel({"title": t}), t)
 
 
+class Confirmacao(unittest.TestCase):
+    def _com(self, resposta):
+        import builtins
+        orig = builtins.input
+        builtins.input = (lambda _p: (_ for _ in ()).throw(EOFError)) if resposta is EOFError else (lambda _p: resposta)
+        try:
+            return dp.confirma("? ")
+        finally:
+            builtins.input = orig
+
+    def test_sim_do_powershell_com_bom(self):
+        self.assertTrue(self._com("\ufeffSIM"))       # caso real: "SIM" | python ... no Windows PowerShell 5.1
+        self.assertTrue(self._com(" sim \r"))
+        self.assertFalse(self._com("não"))
+        self.assertFalse(self._com(EOFError))          # entrada acabou: cancela, sem travar com erro
+
+
 class ModoAutomatico(unittest.TestCase):
     def test_recomendados_so_o_que_e_seguro(self):
         mk = Avaliacao.cand
