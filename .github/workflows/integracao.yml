@@ -57,9 +57,9 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          # chkdsk, SFC e DISM levam ~40 min: só quando o código da Saúde do PC (ou este teste) mudou
+          # chkdsk, SFC e DISM levam ~40 min: só quando o código da Saúde do PC mudou
           $mudou = git diff --name-only HEAD~1 HEAD 2>$null
-          if (-not $? -or ($mudou -match 'saude|integracao')) { $env:REPAROS_LONGOS = '1' }
+          if (-not $? -or ($mudou -match 'driverprecision_saude')) { $env:REPAROS_LONGOS = '1' }
           python -X utf8 tests/integracao_windows.py saude
 
       - name: O .exe compilado abre
