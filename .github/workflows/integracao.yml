@@ -23,6 +23,8 @@ jobs:
       PRINTS: ${{ github.workspace }}\prints
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -53,7 +55,12 @@ jobs:
         run: python -X utf8 tests/integracao_windows.py sites
       - name: Saúde do PC (diagnóstico e reparos reais)
         if: always()
-        run: python -X utf8 tests/integracao_windows.py saude
+        shell: pwsh
+        run: |
+          # chkdsk, SFC e DISM levam ~40 min: só quando o código da Saúde do PC (ou este teste) mudou
+          $mudou = git diff --name-only HEAD~1 HEAD 2>$null
+          if (-not $? -or ($mudou -match 'saude|integracao')) { $env:REPAROS_LONGOS = '1' }
+          python -X utf8 tests/integracao_windows.py saude
 
       - name: O .exe compilado abre
         if: always()

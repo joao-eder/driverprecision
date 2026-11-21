@@ -2,6 +2,14 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.2] - 2026-11-21
+
+### Adicionado
+- Ajuste **"Windows Update não troca drivers sozinho"** (telas Otimização e Escritório, categoria Windows): política oficial do Windows que impede o Windows Update de instalar ou trocar drivers por conta própria. As atualizações de segurança continuam; o DriverPrecision passa a buscar os drivers no Catálogo da Microsoft.
+
+### Corrigido
+- **Áudio com o driver genérico do Windows Update:** quando o Windows Update põe o driver genérico do fabricante da peça (ex.: Realtek) por cima do adaptado pelo fabricante do PC, o app não diz mais "OK": propõe voltar para a versão validada pelo fabricante do PC e, depois de instalar, confere a versão que ficou de fato (o Windows costuma preferir o driver mais novo); se não trocou, explica como resolver. Chipset, disco e térmico mais novos não são rebaixados.
+
 ## [1.4.1] - 2026-11-21
 
 ### Alterado
@@ -113,6 +121,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.4.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.2
 [1.4.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.1
 [1.4.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.0
 [1.3.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.3.3

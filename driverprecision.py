@@ -944,6 +944,9 @@ def fonte_catalogo(sysinfo: dict, devs: list[dict], limite: int = 150) -> str:
 # vale a versão estável mais nova entre os dois. Nas demais (áudio, chipset, disco, térmico, touchpad, câmera...)
 # o fabricante do PC adapta o driver ao modelo e a versão validada por ele vence.
 CLASSES_MAIS_NOVA_DA_PECA = {"NET", "BLUETOOTH", "DISPLAY"}
+# peças em que o driver genérico do fabricante da peça perde ajustes do modelo e vale VOLTAR para o validado pelo PC
+# (chipset, disco e térmico ficam de fora: trocar para versão mais antiga ali é arriscado)
+CLASSES_VALIDADA_PELO_PC = {"MEDIA", "AUDIOENDPOINT"}
 
 
 def _nivel_confianca(c: dict, peca: tuple[str, str] | None, pc_oem: str) -> int | None:
@@ -1020,6 +1023,14 @@ def avaliar(d: dict) -> None:
             if b["source"] != "OEM" and d.get("peca_fora_do_catalogo"):
                 d["motivo"] += (f" (peça não consta no catálogo do fabricante do PC — trocada ou opcional; "
                                 f"driver do fabricante da peça, {d['fabricante_peca']})")
+        elif (c < 0 and b["source"] == "OEM" and b.get("level") == "exato" and not b.get("version_is_pkg")
+              and d.get("cls") in CLASSES_VALIDADA_PELO_PC):
+            # caso típico: o Windows Update pôs o driver genérico do fabricante da peça (Realtek) por cima do
+            # adaptado pelo fabricante do PC; perde-se a afinação de alto-falante, microfone, Dolby, detecção do fone
+            d["status"] = "SUBSTITUIR"
+            d["motivo"] = (f"instalado {atual} é o genérico do fabricante da peça; para {NOME_CLASSE.get(d['cls'], 'esta peça')} "
+                           f"o certo é o adaptado pelo fabricante do PC ({b.get('version')})")
+            b["voltar_versao"] = True
         else:
             d["status"] = "OK"
             d["motivo"] = "instalado é igual ou mais novo que o da fonte"
@@ -1445,6 +1456,7 @@ def recomendados(e: dict) -> list[tuple[dict, dict]]:
         if not b or b.get("kind") == "firmware" or b.get("manual"):
             continue
         if d["status"] in ("INSTALAR", "SUBSTITUIR", "ATUALIZAR"):
+            b["alvo_id"] = d["id"]  # para conferir, depois de instalar, a versão que ficou de fato
             out.append((d, b))
     # um pacote pode atender vários dispositivos: instala uma vez só
     vistos, unicos = set(), []
@@ -1453,6 +1465,26 @@ def recomendados(e: dict) -> list[tuple[dict, dict]]:
             vistos.add(b["cid"])
             unicos.append((d, b))
     return unicos
+
+
+def versao_instalada(instance_id: str) -> str:
+    ps = ("(Get-PnpDeviceProperty -InstanceId '" + instance_id.replace("'", "''") +
+          "' -KeyName DEVPKEY_Device_DriverVersion -ErrorAction Stop).Data")
+    try:
+        return powershell(ps, 60).strip().splitlines()[-1].strip()
+    except Exception:
+        return ""
+
+
+def conferir_versao(c: dict, msg: str) -> tuple[bool, str]:
+    """Depois de voltar para a versão do fabricante do PC: o Windows costuma preferir o driver mais novo."""
+    agora = versao_instalada(c["alvo_id"])
+    if agora and vcmp(agora, c.get("version")) == 0:
+        return True, msg + f" (conferido: {agora})"
+    return False, (f"o Windows manteve o driver {agora or '?'} em vez do {c.get('version')} do fabricante do PC. "
+                   "Para trocar: Gerenciador de Dispositivos > o aparelho > Desinstalar dispositivo (marque 'Tentar remover "
+                   "o driver') e rode a instalação de novo. Ligue também o ajuste 'Windows Update não troca drivers' "
+                   "para ele não voltar.")
 
 
 def instalar_lista(cs: list[dict], progresso=None) -> dict:
@@ -1464,6 +1496,8 @@ def instalar_lista(cs: list[dict], progresso=None) -> dict:
         log(f"\n[{n}/{len(cs)}] {c['title']}  ({c['cid']})")
         try:
             ok, rb, msg = instalar_um(c)
+            if ok and c.get("voltar_versao") and c.get("alvo_id"):
+                ok, msg = conferir_versao(c, msg)
         except Exception as ex:
             ok, rb, msg = False, False, str(ex)
         log(("  OK: " if ok else "  FALHOU: ") + msg)

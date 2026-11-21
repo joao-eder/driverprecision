@@ -490,6 +490,12 @@ AJUSTES: list[dict] = [
      "desc": "O Windows grava a data em que cada arquivo foi aberto. Desligar evita milhares de gravações pequenas no disco "
              "(ao carregar jogos, por exemplo)."},
     # ---- Rede (energia)
+    {"id": "wu_sem_drivers", "perfis": ("jogos", "escritorio"), "cat": "Windows", "nome": "Windows Update não troca drivers sozinho",
+     "risco": "baixo", "recomendado": False,
+     "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate", "ExcludeWUDriversInQualityUpdate", DW, 1)],
+     "desc": "O Windows Update para de instalar e trocar drivers por conta própria (ex.: pôr o áudio genérico da Realtek por cima "
+             "do adaptado pelo fabricante do notebook). Os drivers ficam com o DriverPrecision, que passa a buscá-los no Catálogo "
+             "da Microsoft. As atualizações de segurança do Windows continuam normalmente."},
     {"id": "delivery_p2p", "perfis": ("jogos", "escritorio"), "cat": "Rede", "nome": "Não compartilhar atualizações com outros PCs", "risco": "baixo",
      "reg": [("HKLM", r"SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization", "DODownloadMode", DW, 0)],
      "desc": "Por padrão o Windows usa sua internet para enviar atualizações a outros PCs. Isso desliga o envio "

@@ -195,6 +195,10 @@ def t_drivers() -> None:
             ok(f"instalou {c['cid']}: {msg}")
         for c, msg in r["falha"]:
             aviso(f"não instalou {c['cid']}: {msg}")
+    com_ver = next((d for d in e["devices"] if d.get("ver") and d.get("id")), None)
+    if com_ver:
+        lida = dp.versao_instalada(com_ver["id"])
+        (ok if dp.vcmp(lida, com_ver["ver"]) == 0 else falha)(f"leitura da versão instalada: {com_ver['name'][:40]} = {lida} (inventário: {com_ver['ver']})")
     rp, msg = dp.ponto_restauracao()
     (ok if rp else aviso)(f"ponto de restauração: {'criado' if rp else msg[:150]}")
 
@@ -420,7 +424,10 @@ def t_saude() -> None:
     (falha if faltando else ok)("diagnóstico leu tudo" + (f", menos {faltando}" if faltando else ""))
     for i in sd.avaliar(d, ot.ambiente()):
         print(f"    {i['status']:<9} {i['grupo'][:20]:<20} {i['nome'][:32]:<32} {i['detalhe'][:70]}")
-    for rid in ("dns", "spooler", "temp", "chkdsk", "sfc", "dism"):
+    longos = bool(os.environ.get("REPAROS_LONGOS"))
+    if not longos:
+        aviso("chkdsk, SFC e DISM pulados: o código da Saúde do PC não mudou neste commit (já validados antes)")
+    for rid in ("dns", "spooler", "temp") + (("chkdsk", "sfc", "dism") if longos else ()):
         t0 = time.time()
         try:
             okr, _, msg = sd.executar(rid)

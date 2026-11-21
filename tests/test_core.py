@@ -185,6 +185,38 @@ class PecaTrocadaEEstavel(unittest.TestCase):
             self.assertEqual(d["melhor"]["source"], "OEM", cls)
             self.assertEqual(d["alt_nova"]["version"], "6.0.9600.1", cls)   # o relatório mostra a mais nova
 
+    def test_audio_generico_do_windows_update_volta_para_o_do_pc(self):
+        # o Windows Update pôs o Realtek genérico 6.0.9600 por cima do Lenovo 6.0.9049 (afinado para o modelo)
+        d = self.placa(["HDAUDIO\\FUNC_01&VEN_10EC&DEV_0257&SUBSYS_17AA2292"])
+        d.update(cls="MEDIA", ver="6.0.9600.1")
+        d["cands"] = [self.cand("OEM", "6.0.9049.1", level="exato"), self.cand("WU", "6.0.9600.1", level="exato", provider="Realtek")]
+        dp.avaliar(d)
+        self.assertEqual(d["status"], "SUBSTITUIR")
+        self.assertEqual(d["melhor"]["version"], "6.0.9049.1")
+        self.assertTrue(d["melhor"]["voltar_versao"])
+        rec = dp.recomendados({"devices": [d]})
+        self.assertEqual(rec[0][1]["alvo_id"], d["id"])
+
+    def test_chipset_mais_novo_nao_e_rebaixado(self):
+        d = self.placa(["PCI\\VEN_8086&DEV_9DE8&SUBSYS_229217AA"])
+        d.update(cls="SYSTEM", ver="30.100.2229.1")
+        d["cands"] = [self.cand("OEM", "30.100.2031.2", level="exato")]
+        dp.avaliar(d)
+        self.assertEqual(d["status"], "OK")
+
+    def test_confere_versao_depois_de_voltar(self):
+        c = {"alvo_id": "HDAUDIO\\X\\1", "version": "6.0.9049.1"}
+        orig = dp.versao_instalada
+        try:
+            dp.versao_instalada = lambda i: "6.0.9049.1"
+            self.assertTrue(dp.conferir_versao(c, "ok")[0])
+            dp.versao_instalada = lambda i: "6.0.9600.1"          # o Windows manteve o mais novo
+            ok, msg = dp.conferir_versao(c, "ok")
+            self.assertFalse(ok)
+            self.assertIn("manteve", msg)
+        finally:
+            dp.versao_instalada = orig
+
     def test_bios_so_avisa(self):
         e = {"system": {"bios": "N2IET99W (1.77 )"}, "links": [("Suporte Lenovo do modelo", "https://pcsupport.lenovo.com/x")],
              "sistema": [{"cid": "LEN:n2iuj", "title": "BIOS Update (Utility & Bootable CD)", "category": "BIOS/UEFI",
