@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.4] - 2026-11-21
+
+### Corrigido
+- **Ajustes de energia conferidos na tomada e na bateria.** Caso real (ASUS M1502IA): o Wi-Fi estava sem economia na tomada mas com economia média na bateria, e o app mostrava "Ativo". Agora mostra "Parcial" quando só um dos dois bate.
+- **Plano Desempenho Máximo leva os ajustes de energia já aplicados** (Wi-Fi, PCIe, USB, núcleos). Esses ajustes valem por plano; ao trocar de plano, o novo vinha com o padrão de fábrica.
+
 ## [1.4.3] - 2026-11-21
 
 ### Corrigido
@@ -126,6 +132,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.4.4]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.4
 [1.4.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.3
 [1.4.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.2
 [1.4.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.1

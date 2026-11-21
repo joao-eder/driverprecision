@@ -195,6 +195,19 @@ def _desempenho_na_bateria(plano: str) -> None:
         _cmd(["powercfg", "/setdcvalueindex", plano, sub, st, str(v)])
 
 
+def _levar_ajustes_de_energia(plano: str, backup: dict) -> None:
+    """Ajustes de energia que o programa já aplicou (Wi-Fi, PCIe, USB, núcleos) valem por plano:
+    ao trocar para o plano novo, aplica neles também, senão voltam ao padrão de fábrica."""
+    for aid in backup:
+        a = POR_ID.get(aid)
+        if not a or a.get("tipo") != "powercfg":
+            continue
+        sub, st, ac, dc = a["pc"]
+        _cmd(["powercfg", "/setacvalueindex", plano, sub, st, str(ac)])
+        if dc is not None:
+            _cmd(["powercfg", "/setdcvalueindex", plano, sub, st, str(dc)])
+
+
 def _herdar_preferencias(de: str, para: str) -> list[str]:
     """Copia para o plano novo o que a pessoa escolheu no plano antigo. Devolve o que foi copiado."""
     copiados = []
@@ -681,10 +694,13 @@ def estado(a: dict) -> str:
         pa = plano_ativo()
         nome = _cmd(["powercfg", "/getactivescheme"])[1]
         return "ATIVO" if pa in (ULTIMATE, ALTO_DESEMPENHO) or re.search(r"Ultimate|Desempenho M[aá]ximo", nome, re.I) else "PADRÃO"
-    if t == "powercfg":
-        sub, st, ac, _ = a["pc"]
-        atual = _pc_lidos(sub, st)[0]
-        return "N/A" if atual is None else ("ATIVO" if atual == ac else "PADRÃO")
+    if t == "powercfg":  # confere tomada E bateria (quando o ajuste define a bateria)
+        sub, st, ac, dc = a["pc"]
+        at_ac, at_dc = _pc_lidos(sub, st)
+        if at_ac is None:
+            return "N/A"
+        certos = [at_ac == ac] + ([at_dc == dc] if dc is not None else [])
+        return "ATIVO" if all(certos) else ("PARCIAL" if any(certos) else "PADRÃO")
     if t == "bcd":
         v = _bcd_get("disabledynamictick")
         return "ATIVO" if v and v.lower() in ("yes", "sim") else "PADRÃO"
@@ -752,11 +768,13 @@ def aplicar(aid: str) -> str:
         anterior = plano_ativo()
         _herdar_preferencias(anterior, g)
         _desempenho_na_bateria(g)
+        _levar_ajustes_de_energia(g, b)
         rc, out = _cmd(["powercfg", "/setactive", g])
         if rc != 0 and g != ALTO_DESEMPENHO:  # Modern Standby: tenta o Alto Desempenho
             g = ALTO_DESEMPENHO
             _herdar_preferencias(anterior, g)
             _desempenho_na_bateria(g)
+            _levar_ajustes_de_energia(g, b)
             rc, out = _cmd(["powercfg", "/setactive", g])
         if rc != 0:
             raise RuntimeError("o Windows não aceitou trocar o plano de energia: " + out.strip()[:160])

@@ -281,6 +281,58 @@ class PlanoDeEnergia(Base):
             ot._cmd = cmd_orig
 
 
+class EnergiaNaBateria(Base):
+    def test_estado_confere_tomada_e_bateria(self):
+        # caso real (ASUS): Wi-Fi 0 na tomada e 2 na bateria aparecia como ATIVO
+        val = {"ac": 0, "dc": 2}
+
+        def cmd(args):
+            if args[1] == "/qh":
+                return 0, f"AC: 0x{val['ac']:08x}\r\nDC: 0x{val['dc']:08x}\r\n"
+            return 0, ""
+        cmd_orig, ot._cmd = ot._cmd, cmd
+        try:
+            self.assertEqual(ot.estado(ot.POR_ID["wifi_power"]), "PARCIAL")
+            val["dc"] = 0
+            self.assertEqual(ot.estado(ot.POR_ID["wifi_power"]), "ATIVO")
+            val["dc"] = 10                         # núcleos: o ajuste só define a tomada
+            val["ac"] = 100
+            self.assertEqual(ot.estado(ot.POR_ID["core_parking"]), "ATIVO")
+        finally:
+            ot._cmd = cmd_orig
+
+    def test_plano_novo_leva_os_ajustes_de_energia_ja_aplicados(self):
+        antigo, novo = "381b4222-f694-41f0-9685-ff5bb260df2e", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        planos = {antigo: {}, novo: {}}
+        ativo = [antigo]
+
+        def cmd(args):
+            op = args[1].lower()
+            if op == "/getactivescheme":
+                return 0, f"GUID: {ativo[0]}"
+            if op == "/list":
+                return 0, f"GUID: {novo}  (Desempenho Máximo)"
+            if op == "/qh":
+                pl = ativo[0] if args[2] == "SCHEME_CURRENT" else args[2]
+                ac, dc = planos[pl].get(args[4], [3, 3])
+                return 0, f"AC: 0x{ac:08x}\r\nDC: 0x{dc:08x}\r\n"
+            if op in ("/setacvalueindex", "/setdcvalueindex"):
+                pl = ativo[0] if args[2] == "SCHEME_CURRENT" else args[2]
+                planos[pl].setdefault(args[4], [3, 3])[0 if "ac" in op else 1] = int(args[5])
+            if op == "/setactive" and args[2] != "SCHEME_CURRENT":
+                ativo[0] = args[2]
+            return 0, ""
+        cmd_orig, ot._cmd = ot._cmd, cmd
+        try:
+            ot.aplicar("wifi_power")                 # no plano antigo
+            ot.aplicar("plano_max")                  # troca de plano
+            self.assertEqual(ativo[0], novo)
+            self.assertEqual(planos[novo][ot.WIFI_POWER], [0, 0])
+            self.assertEqual(ot.estado(ot.POR_ID["wifi_power"]), "ATIVO")
+        finally:
+            ot._cmd = cmd_orig
+
+
 class Tampa(Base):
     def test_tampa_vale_em_todos_os_planos_e_desfaz(self):
         p1, p2 = "381b4222-f694-41f0-9685-ff5bb260df2e", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"
