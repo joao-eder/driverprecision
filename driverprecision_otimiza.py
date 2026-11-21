@@ -532,7 +532,9 @@ AJUSTES += [
     # ---- Memória e muitas abas
     {"id": "memcomp", "perfis": ESC, "cat": "Memória e muitas abas", "nome": "Compressão de memória ligada", "risco": "baixo",
      "reboot": True, "tipo": "ps", "ps": {"ler": "(Get-MMAgent).MemoryCompression", "alvo": "True",
-                                          "gravar": "if('{v}' -eq 'True'){Enable-MMAgent -MemoryCompression}else{Disable-MMAgent -MemoryCompression}"},
+                                          "gravar": "if('{v}' -eq 'True'){Enable-MMAgent -MemoryCompression; Start-Sleep 2; "
+                                                    "if(-not (Get-MMAgent).MemoryCompression){Enable-MMAgent -MemoryCompression}}"
+                                                    "else{Disable-MMAgent -MemoryCompression}"},
      "desc": "O Windows compacta na própria RAM o que está parado (abas, planilhas abertas) em vez de jogar no disco. "
              "Com dezenas de abas, o PC demora muito mais para ficar lento. Vem ligada; muitos 'otimizadores' desligam."},
     {"id": "pagefile", "perfis": ESC, "cat": "Memória e muitas abas", "nome": "Arquivo de paginação gerenciado pelo Windows",

@@ -75,7 +75,8 @@ def t_otimiza() -> None:
     for linha in ot.listar():
         print(f"    estado inicial  {linha['id']:<14} {linha['estado']}")
     # ambientes onde o ajuste legitimamente não se aplica (VM sem GPU PCI, sem Wi-Fi...)
-    pode_nao_aplicar = {"msi_gpu", "wifi_power", "pcie_aspm", "usb_suspend", "core_parking", "timer", "hibernacao", "nagle"}
+    # memcomp: no Windows SERVER a compressão de memória às vezes não liga na hora (o app é para Windows 10/11)
+    pode_nao_aplicar = {"memcomp", "msi_gpu", "wifi_power", "pcie_aspm", "usb_suspend", "core_parking", "timer", "hibernacao", "nagle"}
     for a in ot.AJUSTES:
         aid = a["id"]
         try:
@@ -184,6 +185,11 @@ def t_drivers() -> None:
         (falha if str(v).startswith("falhou") else ok)(f"fonte {k}: {v}")
     rel = Path(e["relatorio"])
     (ok if rel.exists() and rel.stat().st_size > 5000 else falha)(f"relatório HTML: {rel.stat().st_size} bytes")
+    # leitura da versão instalada (usada para conferir a troca de driver), ANTES de instalar qualquer coisa
+    com_ver = next((d for d in e["devices"] if d.get("ver") and d.get("id")), None)
+    if com_ver:
+        lida = dp.versao_instalada(com_ver["id"])
+        (ok if dp.vcmp(lida, com_ver["ver"]) == 0 else falha)(f"leitura da versão instalada: {com_ver['name'][:40]} = {lida} (inventário: {com_ver['ver']})")
     rec = dp.recomendados(e)
     ok(f"recomendados para instalar: {len(rec)}")
     for d, b in rec[:10]:
@@ -195,10 +201,6 @@ def t_drivers() -> None:
             ok(f"instalou {c['cid']}: {msg}")
         for c, msg in r["falha"]:
             aviso(f"não instalou {c['cid']}: {msg}")
-    com_ver = next((d for d in e["devices"] if d.get("ver") and d.get("id")), None)
-    if com_ver:
-        lida = dp.versao_instalada(com_ver["id"])
-        (ok if dp.vcmp(lida, com_ver["ver"]) == 0 else falha)(f"leitura da versão instalada: {com_ver['name'][:40]} = {lida} (inventário: {com_ver['ver']})")
     rp, msg = dp.ponto_restauracao()
     (ok if rp else aviso)(f"ponto de restauração: {'criado' if rp else msg[:150]}")
 
