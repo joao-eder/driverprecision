@@ -53,7 +53,7 @@ class AjustePowerShell(Base):
 
         def fake(script, timeout=600):
             chamadas.append(script)
-            if "Get-MMAgent" in script:
+            if "Get-MMAgent" in script and "-eq" not in script:  # leitura (o comando de gravar também cita Get-MMAgent)
                 return estado["v"]
             if "Enable-MMAgent" in script and "'True' -eq 'True'" in script:
                 estado["v"] = "True"
@@ -137,7 +137,7 @@ class Demora(Base):
         leituras = iter(["False", "False", "False", "True"])   # antes, logo depois, ..., refletiu
 
         def fake(script, timeout=600):
-            return next(leituras) if "Get-MMAgent" in script else ""
+            return next(leituras) if "Get-MMAgent" in script and "-eq" not in script else ""
         ot.dp.powershell = fake
         sleep_orig, ot.time.sleep = ot.time.sleep, lambda s: None
         try:
