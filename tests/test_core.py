@@ -217,6 +217,24 @@ class PecaTrocadaEEstavel(unittest.TestCase):
         finally:
             dp.versao_instalada = orig
 
+    def test_firmware_do_windows_update_nunca_e_instalado(self):
+        # caso real (ASUS M1502IA, Windows 11 26H2): o Windows Update ofereceu o firmware UEFI como "driver"
+        d = dev(["UEFI\\RES_{F9BFFFE2-14C5-53A3-8FF4-C455A116F02F}&REV_312", "UEFI\\RES_{F9BFFFE2-14C5-53A3-8FF4-C455A116F02F}"],
+                inf="c_firmware.inf", cls="FIRMWARE", ver="10.0.26100.4768")
+        d["cands"] = [self.cand("WU", "10.1.2.312", level="chip", provider="ASUSTeK COMPUTER INC.",
+                                title="ASUSTeK COMPUTER INC. - Firmware - 10.1.2.312", category="Firmware")]
+        dp.avaliar(d)
+        self.assertEqual(d["status"], "OK")                      # 312 já instalada
+        self.assertIn("em dia", d["motivo"])
+        self.assertEqual(dp.recomendados({"devices": [d]}), [])
+        d["hwids"] = [h.replace("REV_312", "REV_305") for h in d["hwids"]]   # instalada mais antiga: só avisa
+        dp.avaliar(d)
+        self.assertEqual(d["status"], "ATUALIZAR")
+        self.assertEqual(dp.recomendados({"devices": [d]}), [])
+        av = dp.avisos_firmware({"system": {"bios": "M1502IA.305"}, "devices": [d], "sistema": []})
+        self.assertEqual(av[0]["disponivel"], "10.1.2.312")
+        self.assertFalse(dp.instalar_um(d["melhor"])[0])         # nem pedindo direto
+
     def test_bios_so_avisa(self):
         e = {"system": {"bios": "N2IET99W (1.77 )"}, "links": [("Suporte Lenovo do modelo", "https://pcsupport.lenovo.com/x")],
              "sistema": [{"cid": "LEN:n2iuj", "title": "BIOS Update (Utility & Bootable CD)", "category": "BIOS/UEFI",

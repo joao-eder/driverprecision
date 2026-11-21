@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.3] - 2026-11-21
+
+### Corrigido
+- **Firmware oferecido pelo Windows Update como "driver" era instalado.** Caso real (ASUS Vivobook M1502IA, Windows 11 26H2): o firmware UEFI da ASUS veio como driver do dispositivo "Firmware do Sistema". Agora tudo do firmware do sistema (barramento UEFI, classe Firmware, pacotes de firmware) segue a regra da BIOS: nunca é instalado; se a revisão oferecida for mais nova que a instalada (`REV_` do Hardware ID), aparece só como aviso, com a versão disponível.
+
 ## [1.4.2] - 2026-11-21
 
 ### Adicionado
@@ -121,6 +126,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.4.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.3
 [1.4.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.2
 [1.4.1]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.1
 [1.4.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.0

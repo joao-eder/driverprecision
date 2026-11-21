@@ -966,7 +966,37 @@ def _nivel_confianca(c: dict, peca: tuple[str, str] | None, pc_oem: str) -> int 
     return None  # terceiro que reempacota driver de outro fabricante: não
 
 
+def eh_firmware(d: dict) -> bool:
+    """Firmware do sistema (UEFI/BIOS, Thunderbolt, EC...): o Windows Update o oferece como 'driver', mas é firmware."""
+    return d.get("bus") == "UEFI" or d.get("cls") == "FIRMWARE" or \
+        any(re.search(r"\bfirmware\b", f"{c.get('category')} {c.get('title')}", re.I) and c["source"] != "OEM" for c in d["cands"])
+
+
+def _avaliar_firmware(d: dict) -> None:
+    """BIOS/firmware: nunca instalado pelo programa, só avisa se há revisão mais nova que a instalada."""
+    for c in d["cands"]:
+        c["kind"] = "firmware"
+    rev = next((int(m.group(1)) for h in d["hwids"] for m in [re.search(r"&REV_(\d+)$", h)] if m), None)
+    cands = sorted((c for c in d["cands"] if estavel(c)), key=lambda c: vtuple(c.get("version")), reverse=True)
+    d["melhor"] = cands[0] if cands else None
+    d["alternativas"] = cands[1:]
+    d["instaveis"] = len(d["cands"]) - len(cands)
+    if not cands:
+        d["status"], d["motivo"] = "OK", "firmware: nenhuma versão mais nova nas fontes"
+        return
+    ultimo = (vtuple(cands[0].get("version")) or (0,))[-1]
+    if rev is not None and ultimo <= rev:
+        d["status"], d["motivo"] = "OK", f"firmware em dia (revisão {rev} instalada; a fonte oferece {cands[0].get('version')})"
+    else:
+        d["status"] = "ATUALIZAR"
+        d["motivo"] = (f"firmware/BIOS mais novo disponível ({cands[0].get('version')}): o programa NÃO instala firmware; "
+                       "confira na página do fabricante e instale com o carregador conectado")
+
+
 def avaliar(d: dict) -> None:
+    if eh_firmware(d):
+        _avaliar_firmware(d)
+        return
     peca = fabricante_peca(d)
     d["fabricante_peca"] = peca[0] if peca else ""
     pc_oem = d.get("pc_oem") or ""
@@ -1438,7 +1468,9 @@ def avisos_firmware(e: dict) -> list[dict]:
     bios = (e.get("system") or {}).get("bios") or ""
     link = next((u for _, u in e.get("links") or []), "")
     out = []
-    for x in e.get("sistema") or []:
+    fw_dev = [dict(d["melhor"], status="ATUALIZAR", category="Firmware") for d in e.get("devices") or []
+              if d.get("status") == "ATUALIZAR" and d.get("melhor") and d["melhor"].get("kind") == "firmware"]
+    for x in (e.get("sistema") or []) + fw_dev:
         if x.get("status") != "ATUALIZAR":
             continue
         eh_bios = bool(re.search(r"bios", f"{x.get('category')} {x.get('title')}", re.I))
