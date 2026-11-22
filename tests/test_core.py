@@ -1,5 +1,4 @@
 """Testes das regras de casamento e comparação (não acessam rede nem WMI)."""
-import json
 import sys
 import unittest
 from pathlib import Path
@@ -224,57 +223,22 @@ class PecaTrocadaEEstavel(unittest.TestCase):
                 inf="c_firmware.inf", cls="FIRMWARE", ver="10.0.26100.4768")
         d["cands"] = [self.cand("WU", "10.1.2.312", level="chip", provider="ASUSTeK COMPUTER INC.",
                                 title="ASUSTeK COMPUTER INC. - Firmware - 10.1.2.312", category="Firmware")]
-        dp.avaliar(d)
-        self.assertEqual(d["status"], "OK")                      # 312 já instalada
-        self.assertIn("em dia", d["motivo"])
-        self.assertEqual(dp.recomendados({"devices": [d]}), [])
-        d["hwids"] = [h.replace("REV_312", "REV_305") for h in d["hwids"]]   # instalada mais antiga: só avisa
-        dp.avaliar(d)
-        self.assertEqual(d["status"], "ATUALIZAR")
-        self.assertEqual(dp.recomendados({"devices": [d]}), [])
-        av = dp.avisos_firmware({"system": {"bios": "M1502IA.305"}, "devices": [d], "sistema": []})
-        self.assertEqual(av[0]["disponivel"], "10.1.2.312")
-        self.assertFalse(dp.instalar_um(d["melhor"])[0])         # nem pedindo direto
+        for rev in ("REV_312", "REV_305"):                          # mesmo com revisão mais nova oferecida: nada
+            d["hwids"] = [h.replace("REV_312", rev) for h in d["hwids"]]
+            dp.avaliar(d)
+            self.assertEqual(d["status"], "OK")
+            self.assertIn("Saúde do PC", d["motivo"])
+            self.assertEqual(dp.recomendados({"devices": [d]}), [])
+        self.assertFalse(dp.instalar_um(d["cands"][0])[0])         # nem pedindo direto
 
-    def test_bios_da_asus_so_avisa(self):
-        si = {"mfr": "ASUSTeK COMPUTER INC.", "model": "Vivobook_ASUSLaptop M1502IA_M1502IA", "bios": "M1502IA.312"}
-        self.assertEqual(dp.modelo_asus(si), "M1502IA")
-        resposta = {"Result": {"Obj": [{"Name": "BIOS Update(Windows)", "Files": [
-            {"Version": "315", "Title": "BIOS Update for Windows", "ReleaseDate": "2026/10/30"}]},
-            {"Name": "BIOS", "Files": [{"Version": "312", "Title": "BIOS 312"}, {"Version": "316", "Title": "BIOS 316 Beta"}]}]}}
-        orig = dp.cached
-        dp.cached = lambda *a, **k: json.dumps(resposta).encode()
-        try:
-            sist = []
-            dp.fonte_asus(si, [], sist)
-        finally:
-            dp.cached = orig
-        self.assertEqual(len(sist), 1)
-        b = sist[0]
-        self.assertEqual((b["version"], b["status"], b["kind"]), ("315", "ATUALIZAR", "firmware"))   # o beta 316 é ignorado
-        e = {"system": si, "sistema": sist, "devices": [], "links": dp.links_oem(si)}
-        self.assertIn("versão nova disponível: 315", dp.resumo_bios(e))
-        self.assertIn("helpdesk_bios", dp.avisos_firmware(e)[0]["link"])
-        self.assertEqual(dp.recomendados(e), [])
-        with self.assertRaises(RuntimeError):                       # nem o download
-            dp.baixar_um(b)
-        b["status"] = "OK"
-        self.assertIn("em dia", dp.resumo_bios(e))
-        self.assertIn("não publica catálogo", dp.resumo_bios({"system": {"bios": "X"}, "sistema": [], "devices": []}))
-
-    def test_bios_so_avisa(self):
-        e = {"system": {"bios": "N2IET99W (1.77 )"}, "links": [("Suporte Lenovo do modelo", "https://pcsupport.lenovo.com/x")],
-             "sistema": [{"cid": "LEN:n2iuj", "title": "BIOS Update (Utility & Bootable CD)", "category": "BIOS/UEFI",
-                          "version": "1.80", "date": "2026-10-02", "status": "ATUALIZAR", "kind": "firmware"},
-                         {"cid": "LEN:ok", "title": "BIOS", "category": "BIOS", "version": "1.77", "status": "OK", "kind": "firmware"}]}
-        av = dp.avisos_firmware(e)
-        self.assertEqual(len(av), 1)
-        self.assertEqual((av[0]["instalada"], av[0]["disponivel"], av[0]["link"]),
-                         ("N2IET99W (1.77 )", "1.80", "https://pcsupport.lenovo.com/x"))
-        ok, rb, msg = dp.instalar_um(e["sistema"][0])        # e nunca instala, nem pedindo direto
+    def test_bios_nunca_baixada_nem_instalada(self):
+        bios = {"cid": "LEN:n2iuj", "source": "OEM", "title": "BIOS Update", "category": "BIOS", "version": "1.80",
+                "kind": "firmware", "url": "https://download.lenovo.com/x.exe"}
+        with self.assertRaises(RuntimeError):
+            dp.baixar_um(bios)
+        ok, _, msg = dp.instalar_um(bios)
         self.assertFalse(ok)
         self.assertIn("não é instalado", msg)
-        self.assertEqual(dp.recomendados({"devices": [], "sistema": e["sistema"]}), [])
 
     def test_terceiros_e_outro_fabricante_de_pc_descartados(self):
         d = self.placa()

@@ -182,7 +182,13 @@ class Saude(unittest.TestCase):
              "update_dias": 120, "bitlocker": "Off", "uac": 0, "smb1": "Enabled", "restauracao_ligada": False,
              "redes": {"nome": "Wi-Fi", "categoria": "Public", "internet": "Internet"}, "spooler": "Stopped",
              "office_plataforma": "x86", "inicializacao": [str(i) for i in range(14)]}
+        d.update(bios_versao="M1502IA.312", bios_fabricante="American Megatrends International, LLC.", bios_data="2025-05-10",
+                 pc_fabricante="ASUSTeK COMPUTER INC.", pc_modelo="Vivobook M1502IA")
         it = sd.avaliar(d, {"gerenciado": True, "descricao": "Intune/MDM"})
+        b = self._st(it, "bios")
+        self.assertEqual(b["status"], sd.INFO)
+        self.assertIn("M1502IA.312", b["detalhe"])
+        self.assertIn("não verifica, não baixa e não instala", b["dica"])
         esperado = {"antivirus": sd.OK, "assinaturas": sd.ATENCAO, "firewall": sd.PROBLEMA, "update": sd.PROBLEMA,
                     "uac": sd.PROBLEMA, "smb1": sd.ATENCAO, "bitlocker": sd.ATENCAO, "restauracao": sd.ATENCAO,
                     "disco_SSD": sd.PROBLEMA, "espaco": sd.PROBLEMA, "ram": sd.ATENCAO, "uptime": sd.ATENCAO,

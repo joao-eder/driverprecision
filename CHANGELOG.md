@@ -6,11 +6,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ### Adicionado
 - Botões **"Marcar todos"** e **"Desmarcar todos"** acima das listas das telas Drivers, Jogos, Otimização e Escritório (só marcam o que tem caixinha: instalados, "não se aplica" e bloqueados pela empresa ficam de fora). "Marcar recomendados" foi para a mesma barra.
-- **BIOS sempre visível** na tela de Drivers: versão instalada e se é a mais nova publicada pelo fabricante. Só aviso.
-- **ASUS:** a versão de BIOS mais nova publicada para o modelo é conferida no site de suporte da ASUS (só a lista de versões; nenhum arquivo é baixado).
+- **BIOS na Saúde do PC:** versão instalada, fabricante e data, com a orientação para conferir atualização no site oficial do fabricante.
 
 ### Alterado
-- **BIOS/firmware nunca é baixado, de nenhuma marca** — nem pela linha de comando. O programa só lê a versão instalada e a lista de versões publicadas.
+- **BIOS/firmware: o programa não verifica atualização, não baixa e não instala, de nenhuma marca** (nem pela linha de comando). Saíram da tela de Drivers e do relatório as comparações de BIOS dos catálogos Lenovo, Dell e HP; firmware oferecido pelo Windows Update fica fora da lista.
 - **Proteção do sistema (pontos de restauração):** o ajuste que a ligava foi retirado; o programa não muda essa configuração. A Saúde do PC só verifica e sugere como ligar.
 
 ## [1.4.4] - 2026-11-21

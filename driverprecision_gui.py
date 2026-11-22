@@ -84,8 +84,6 @@ class App:
         self.btn = ttk.Button(base, text="Verificar agora", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
         self.btn2 = ttk.Button(base, text="Ver relatório completo", command=self.abrir_relatorio)
-        self.btn_bios = ttk.Button(base, text="Página da BIOS", command=self.abrir_bios)
-        self.link_bios = ""
         self.btn_det = ttk.Button(base, text="Mostrar detalhes", command=self._detalhes)
         self.btn_det.pack(side="left")
 
@@ -144,7 +142,6 @@ class App:
     def _ocupado(self, texto: str) -> None:
         self.btn.config(state="disabled")
         self.btn2.pack_forget()
-        self.btn_bios.pack_forget()
         self.barra_sel.pack_forget()
         self.lista_frame.pack_forget()
         self.aviso.pack_forget()
@@ -184,7 +181,7 @@ class App:
         self.btn2.pack(side="right", padx=(0, 10))
         s = e["system"]
         self.passo.config(text=f"{s.get('mfr') or ''} {s.get('model') or ''} · {s.get('os') or ''} · "
-                               f"{len(e['devices'])} peças verificadas\n{dp.resumo_bios(e)}")
+                               f"{len(e['devices'])} peças verificadas")
         rec = dp.recomendados(e)
         self.tree.delete(*self.tree.get_children())
         self.itens.clear()
@@ -205,13 +202,6 @@ class App:
         if n_ver:
             extras.append(f"{n_ver} item(ns) precisam de conferência técnica e não serão instalados "
                           "automaticamente (veja o relatório).")
-        for f in dp.avisos_firmware(e):
-            self.link_bios = self.link_bios or f["link"]
-            if not f["bios"]:  # a BIOS já aparece na linha fixa acima; aqui só os outros firmwares
-                extras.append(f"⚠ Firmware com versão nova: {f['titulo']} {f['disponivel']}. O programa não baixa nem "
-                              "instala firmware: confira na página do fabricante.")
-        if self.link_bios:
-            self.btn_bios.pack(side="right", padx=(0, 10))
         if rec:
             self.msg.config(text=f"Encontramos {len(rec)} driver(s) para instalar ou atualizar.", foreground=AZUL)
             self.barra_sel.pack(fill="x", pady=(8, 6))
@@ -303,11 +293,6 @@ class App:
                                                             "Salve seus arquivos. Reiniciar agora?"):
             subprocess.run(["shutdown.exe", "/r", "/t", "10", "/c", "DriverPrecision: concluindo instalação de drivers"],
                            creationflags=dp.NO_WINDOW)
-
-    def abrir_bios(self) -> None:
-        if self.link_bios:
-            import webbrowser
-            webbrowser.open(self.link_bios)
 
     def abrir_relatorio(self) -> None:
         if self.relatorio and os.path.exists(self.relatorio):

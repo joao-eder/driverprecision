@@ -522,7 +522,6 @@ def fonte_lenovo(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
 
     with cf.ThreadPoolExecutor(8) as ex:
         res = list(ex.map(lambda i: _safe(baixa, i), pkgs))
-    bios_atual = (sysinfo.get("bios") or "").upper()
     n = 0
     for r in res:
         if not r:
@@ -566,24 +565,7 @@ def fonte_lenovo(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
             if pn.text:
                 ids.add(pn.text.strip().upper())
         if not ids:
-            # pacote de sistema (BIOS, firmware, utilitário): avalia pela BIOS atual
-            if catg and "Software" in catg:
-                continue
-            levels = [lv.text.strip().upper() for lv in p.iter("Level") if lv.text]
-            dep_levels = [lv.text.strip().upper() for lv in p.findall("Dependencies//_Bios/Level") if lv.text]
-            det_levels = [lv.text.strip().upper() for lv in p.findall("DetectInstall//_Bios/Level") if lv.text]
-            if not levels:
-                continue
-            aplica = any(fnmatch.fnmatchcase(bios_atual, lv) for lv in dep_levels) if dep_levels else True
-            instalado = any(fnmatch.fnmatchcase(bios_atual, lv) for lv in det_levels)
-            if not aplica and not instalado:
-                continue
-            c = dict(cand_base, version=pver, match_id="BIOS " + (sysinfo.get("bios") or ""), level="exato",
-                     status="OK" if instalado or not aplica else "ATUALIZAR",
-                     note="BIOS/firmware: instale manualmente, com carregador conectado")
-            sistema.append(c)
-            n += 1
-            continue
+            continue  # pacote sem Hardware ID (BIOS, firmware, utilitário): BIOS o usuário confere por conta própria
         for d in devs:
             hits = [(h, i) for i in ids for h in [id_match(d["mids"], i)] if h]
             if not hits:
@@ -620,7 +602,6 @@ def fonte_dell(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
     root = ET.fromstring(xml)
     oscodes = DELL_OS[win_major(sysinfo)]
     n = tot = 0
-    bios_atual = sysinfo.get("bios") or ""
     for sc in root.iter("SoftwareComponent"):
         if not any((m.get("systemID") or "").upper() == sku for m in sc.iter("Model")):
             continue
@@ -653,13 +634,8 @@ def fonte_dell(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
             sv, sd = (pi.get("subVendorID") or "").upper(), (pi.get("subDeviceID") or "").upper()
             if ven and dev:
                 pcis.append(f"PCI\\VEN_{ven}&DEV_{dev}" + (f"&SUBSYS_{sd}{sv}" if sv and sd else ""))
-        if ctype == "BIOS":
-            cmpv = vcmp(sc.get("vendorVersion"), bios_atual)
-            sistema.append(dict(cand_base, match_id="BIOS " + bios_atual, level="exato",
-                                status="ATUALIZAR" if cmpv and cmpv > 0 else "OK",
-                                note="BIOS: instale manualmente, com carregador conectado"))
-            n += 1
-            continue
+        if ctype in ("BIOS", "FRMW"):
+            continue  # BIOS/firmware: o programa não consulta nem baixa (o usuário confere por conta própria)
         casou = False
         for d in devs:
             for pid in pcis:
@@ -726,7 +702,6 @@ def fonte_hp(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
     modelo = alvo.findtext("ProductName") or plat
     n = 0
     vistos = set()
-    bios_atual = sysinfo.get("bios") or ""
 
     def cand(ui, spid):
         catg = ui.findtext("Category") or ""
@@ -758,50 +733,7 @@ def fonte_hp(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
                     nivel = "exato" if especificidade(hit) == "exato" and especificidade_pacote(hid) == "exato" else "chip"
                     d["cands"].append(dict(cand(sp[r], r), match_id=hit, level=nivel))
                     n += 1
-    for spid, ui in sp.items():
-        if re.search(r"^BIOS", ui.findtext("Category") or "", re.I):
-            c = cand(ui, spid)
-            cmpv = vcmp(c["version"], re.sub(r"^.*?Ver\.?\s*", "", bios_atual))
-            sistema.append(dict(c, match_id="BIOS " + bios_atual, level="exato",
-                                status="ATUALIZAR" if cmpv and cmpv > 0 else "OK",
-                                note="BIOS: instale manualmente, com carregador conectado"))
     return f"ok - {len(sp)} softpaqs na referência {osv}.{rid}, {n} associações"
-
-
-# --------------------------------------------------------------------------- fonte: ASUS (só BIOS)
-
-def modelo_asus(sysinfo: dict) -> str:
-    """Modelo curto da ASUS (ex.: M1502IA). A BIOS da ASUS vem como 'M1502IA.312'."""
-    bios = (sysinfo.get("bios") or "").strip().upper()
-    m = re.fullmatch(r"([A-Z0-9]{4,20})\.(\d{3,4})", bios)
-    if m and m.group(1) in (sysinfo.get("model") or "").upper().replace("_", " ").split() + [
-            x for x in re.split(r"[ _]", (sysinfo.get("model") or "").upper())]:
-        return m.group(1)
-    return m.group(1) if m else ""
-
-
-def fonte_asus(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
-    """A ASUS não lista os Hardware IDs dos pacotes: daqui só sai a BIOS (versão publicada x instalada), para AVISO."""
-    modelo = modelo_asus(sysinfo)
-    if not modelo:
-        return f"BIOS '{sysinfo.get('bios')}' não está no formato da ASUS (modelo.versão)"
-    instalada = int((sysinfo.get("bios") or "0").rsplit(".", 1)[-1] or 0)
-    url = f"https://www.asus.com/support/api/product.asmx/GetPDBIOS?website=global&model={urllib.parse.quote(modelo)}&pdhashedid="
-    dados = json.loads(cached(url, f"asus_bios_{modelo}.json", 24, timeout=60).decode("utf-8-sig"))
-    arquivos = [f for g in ((dados.get("Result") or {}).get("Obj") or []) if re.search(r"\bBIOS\b", g.get("Name") or "", re.I)
-                for f in (g.get("Files") or [])]
-    versoes = [(int(re.sub(r"\D", "", f.get("Version") or "") or 0), f) for f in arquivos]
-    versoes = [(v, f) for v, f in versoes if v and estavel({"title": f.get("Title"), "version": f.get("Version")})]
-    if not versoes:
-        return f"ok - nenhuma BIOS publicada para {modelo}"
-    v, f = max(versoes, key=lambda x: x[0])
-    sistema.append({"cid": f"ASUS:BIOS:{modelo}:{v}", "source": "OEM", "source_name": f"ASUS ({modelo})",
-                    "title": f.get("Title") or "BIOS", "version": str(v), "date": (f.get("ReleaseDate") or "")[:10],
-                    "category": "BIOS", "kind": "firmware", "level": "exato", "match_id": "BIOS " + (sysinfo.get("bios") or ""),
-                    "status": "ATUALIZAR" if v > instalada else "OK",
-                    "url": f"https://www.asus.com/supportonly/{modelo}/helpdesk_bios/",
-                    "note": "BIOS: o programa só avisa; atualize pela página da ASUS, com o carregador conectado"})
-    return f"ok - BIOS mais nova publicada para {modelo}: {v} (instalada: {instalada})"
 
 
 # --------------------------------------------------------------------------- fonte: Windows Update
@@ -1009,24 +941,13 @@ def eh_firmware(d: dict) -> bool:
 
 
 def _avaliar_firmware(d: dict) -> None:
-    """BIOS/firmware: nunca instalado pelo programa, só avisa se há revisão mais nova que a instalada."""
+    """BIOS/firmware do sistema: o programa não verifica atualização, não baixa e não instala (decisão do usuário:
+    é sensível). A versão instalada aparece na Saúde do PC, e a pessoa confere no site do fabricante."""
     for c in d["cands"]:
         c["kind"] = "firmware"
-    rev = next((int(m.group(1)) for h in d["hwids"] for m in [re.search(r"&REV_(\d+)$", h)] if m), None)
-    cands = sorted((c for c in d["cands"] if estavel(c)), key=lambda c: vtuple(c.get("version")), reverse=True)
-    d["melhor"] = cands[0] if cands else None
-    d["alternativas"] = cands[1:]
-    d["instaveis"] = len(d["cands"]) - len(cands)
-    if not cands:
-        d["status"], d["motivo"] = "OK", "firmware: nenhuma versão mais nova nas fontes"
-        return
-    ultimo = (vtuple(cands[0].get("version")) or (0,))[-1]
-    if rev is not None and ultimo <= rev:
-        d["status"], d["motivo"] = "OK", f"firmware em dia (revisão {rev} instalada; a fonte oferece {cands[0].get('version')})"
-    else:
-        d["status"] = "ATUALIZAR"
-        d["motivo"] = (f"firmware/BIOS mais novo disponível ({cands[0].get('version')}): o programa NÃO instala firmware; "
-                       "confira na página do fabricante e instale com o carregador conectado")
+    d["melhor"], d["alternativas"], d["instaveis"] = None, list(d["cands"]), 0
+    d["status"] = "OK"
+    d["motivo"] = "firmware/BIOS: o programa não verifica nem instala; veja a versão na Saúde do PC"
 
 
 def avaliar(d: dict) -> None:
@@ -1125,8 +1046,8 @@ def fabricante(sysinfo: dict) -> str:
     return ""
 
 
-CATALOGOS_OEM = {"lenovo": "fonte_lenovo", "dell": "fonte_dell", "hp": "fonte_hp", "asus": "fonte_asus"}
-OEM_COM_DRIVERS = {"lenovo", "dell", "hp"}  # catálogos que listam drivers por Hardware ID (a ASUS, só BIOS)
+CATALOGOS_OEM = {"lenovo": "fonte_lenovo", "dell": "fonte_dell", "hp": "fonte_hp"}
+OEM_COM_DRIVERS = set(CATALOGOS_OEM)  # catálogos que listam drivers por Hardware ID
 
 
 def links_oem(sysinfo: dict) -> list[tuple[str, str]]:
@@ -1139,8 +1060,6 @@ def links_oem(sysinfo: dict) -> list[tuple[str, str]]:
                       + urllib.parse.quote((sysinfo.get("serial") or "").strip()) + "/drivers"))
     elif f == "hp":
         links.append(("Suporte HP", "https://support.hp.com/drivers"))
-    elif f == "asus" and modelo_asus(sysinfo):
-        links.append(("Suporte ASUS do modelo (BIOS)", f"https://www.asus.com/supportonly/{modelo_asus(sysinfo)}/helpdesk_bios/"))
     else:
         bb = f"{sysinfo.get('bbmfr') or ''} {sysinfo.get('bbproduct') or ''}".strip()
         if bb:
@@ -1502,38 +1421,6 @@ def ponto_restauracao() -> tuple[bool, str]:
         return "ok" in (out or ""), out or ""
     except Exception as ex:
         return False, str(ex).split(" At line:")[0][:300]
-
-
-def avisos_firmware(e: dict) -> list[dict]:
-    """BIOS/firmware com versão mais nova no catálogo do fabricante do PC. Só aviso: nunca instalado pelo programa."""
-    bios = (e.get("system") or {}).get("bios") or ""
-    link = next((u for _, u in e.get("links") or []), "")
-    out = []
-    fw_dev = [dict(d["melhor"], status="ATUALIZAR", category="Firmware") for d in e.get("devices") or []
-              if d.get("status") == "ATUALIZAR" and d.get("melhor") and d["melhor"].get("kind") == "firmware"]
-    for x in (e.get("sistema") or []) + fw_dev:
-        if x.get("status") != "ATUALIZAR":
-            continue
-        eh_bios = bool(re.search(r"bios", f"{x.get('category')} {x.get('title')}", re.I))
-        out.append({"titulo": x.get("title") or "BIOS/firmware", "bios": eh_bios, "instalada": bios if eh_bios else "",
-                    "disponivel": x.get("version") or x.get("pkg_version") or "?", "data": x.get("date") or "",
-                    "link": link or x.get("readme") or ""})
-    return out
-
-
-def resumo_bios(e: dict) -> str:
-    """Linha sempre visível na tela de Drivers: BIOS instalada e se há versão nova (só aviso)."""
-    s = e.get("system") or {}
-    inst = s.get("bios") or "?"
-    novas = [f for f in avisos_firmware(e) if f["bios"]]
-    if novas:
-        f = novas[0]
-        return (f"BIOS: instalada {inst} · ⚠ versão nova disponível: {f['disponivel']}" + (f" ({f['data']})" if f["data"] else "")
-                + " — o programa não baixa nem instala BIOS; use a página do fabricante, com o carregador conectado.")
-    if any(re.search(r"bios", f"{x.get('category')} {x.get('title')}", re.I) for x in e.get("sistema") or []):
-        return f"BIOS: instalada {inst} · ✔ em dia (é a mais nova publicada pelo fabricante)."
-    return (f"BIOS: instalada {inst} · não dá para conferir a mais nova: o fabricante deste PC não publica catálogo. "
-            "Confira no site de suporte dele.")
 
 
 def recomendados(e: dict) -> list[tuple[dict, dict]]:

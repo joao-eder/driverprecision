@@ -163,7 +163,7 @@ Peça original (que o catálogo do fabricante do PC lista com ID exato) e o fabr
 |---|---|---|
 | Wi-Fi, Bluetooth, rede, vídeo | a versão estável mais nova (empate: a do fabricante do PC) | o pacote do PC é o mesmo driver da Intel/Realtek/NVIDIA/AMD repassado, com atraso |
 | Áudio, chipset, Serial IO, Management Engine, controlador de disco, térmico, sensores, touchpad, câmera, biometria, leitor de cartão | a validada pelo fabricante do PC (o relatório mostra a mais nova) | o fabricante do PC ajusta o driver ao modelo e à BIOS |
-| BIOS e firmware | nunca instalados | o programa só avisa a versão instalada e a disponível, com link para a página do fabricante |
+| BIOS e firmware | nunca verificados, baixados nem instalados | a versão instalada aparece na Saúde do PC; a atualização a pessoa confere no site do fabricante |
 
 Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o driver do fabricante da peça.
 
@@ -171,7 +171,7 @@ Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o 
 
 - Exige administrador. Antes de instalar, cria um ponto de restauração do Windows; se não conseguir, pergunta se quer continuar.
 - Todo arquivo baixado é validado (hash do catálogo do fabricante + assinatura digital válida). Se falhar, o arquivo é apagado e nada roda.
-- **BIOS e firmware nunca são instalados automaticamente:** use `baixar`, leia as notas e rode manualmente, com o carregador conectado.
+- **BIOS e firmware:** o programa não verifica, não baixa e não instala (nem pela linha de comando). A versão instalada aparece na Saúde do PC; a atualização é por conta da pessoa, pelo site oficial do fabricante, com o carregador conectado.
 - Lenovo: `ExtractCommand` + `Install` do descritor oficial. Dell: `DUP.exe /s`. HP: `spXXXX.exe /s`. Catalog: `expand` + `pnputil /add-driver /install`. WU: API do Windows Update.
 
 ## Limitações conhecidas

@@ -22,6 +22,10 @@ $ErrorActionPreference='SilentlyContinue'
 $o=[ordered]@{}
 $cs=Get-CimInstance Win32_ComputerSystem; $os=Get-CimInstance Win32_OperatingSystem
 $o.ram_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1)
+$bi=Get-CimInstance Win32_BIOS
+$o.bios_versao=[string]$bi.SMBIOSBIOSVersion; $o.bios_fabricante=[string]$bi.Manufacturer
+if($bi.ReleaseDate){ $o.bios_data=$bi.ReleaseDate.ToString('yyyy-MM-dd') }
+$o.pc_fabricante=[string]$cs.Manufacturer; $o.pc_modelo=[string]$cs.Model
 $o.ram_livre_gb=[math]::Round($os.FreePhysicalMemory/1MB,1)
 $o.uptime_h=[math]::Round(((Get-Date)-$os.LastBootUpTime).TotalHours,1)
 $o.pagefile_auto=[bool]$cs.AutomaticManagedPagefile
@@ -133,6 +137,15 @@ def avaliar(d: dict, amb: dict | None = None) -> list[dict]:
         bom = d.get("secureboot") is not False and d.get("tpm") is not False
         item(g, "firmware", "Proteção na inicialização", OK if bom else INFO, ", ".join(partes),
              "" if bom else "Inicialização Segura e TPM se ligam no setup (BIOS/UEFI) do PC; exigidos pelo Windows 11.")
+
+    # ------------------------------------------------ BIOS (só a versão instalada)
+    if d.get("bios_versao"):
+        pc = " ".join(x for x in (d.get("pc_fabricante"), d.get("pc_modelo")) if x).strip() or "do seu PC"
+        item("Sistema", "bios", "BIOS/UEFI instalada", INFO,
+             " · ".join(x for x in (d["bios_versao"], d.get("bios_fabricante"), d.get("bios_data")) if x),
+             f"O DriverPrecision não verifica, não baixa e não instala BIOS. Para saber se há versão nova, procure a página "
+             f"de suporte do modelo ({pc}) no site oficial do fabricante e compare com a versão acima. Se for atualizar, "
+             "use só o site oficial e deixe o notebook no carregador.")
 
     # ------------------------------------------------ Integridade
     g = "Integridade do sistema"
