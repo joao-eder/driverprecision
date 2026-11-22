@@ -1,207 +1,102 @@
-# DriverPrecision
+# <div align="center">DriverPrecision — Drivers, Jogos e Desempenho</div>
 
-<p align="center"><img src="assets/logo.png" width="160" alt="Logo do DriverPrecision"></p>
+<p align="center">
+  <img src="assets/logo.png" width="120" alt="Logo do DriverPrecision">
+</p>
 
-[![CI](https://github.com/joao-eder/driverprecision/actions/workflows/ci.yml/badge.svg)](https://github.com/joao-eder/driverprecision/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/joao-eder/driverprecision)](https://github.com/joao-eder/driverprecision/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/joao-eder/driverprecision/releases/latest"><img src="https://img.shields.io/github/v/release/joao-eder/driverprecision?style=for-the-badge&label=vers%C3%A3o" alt="Versão"></a>
+  <a href="https://github.com/joao-eder/driverprecision/releases"><img src="https://img.shields.io/github/downloads/joao-eder/driverprecision/total?style=for-the-badge&label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/joao-eder/driverprecision/actions/workflows/integracao.yml"><img src="https://img.shields.io/github/actions/workflow/status/joao-eder/driverprecision/integracao.yml?branch=main&style=for-the-badge&label=Windows%20real" alt="Teste em Windows real"></a>
+  <img src="https://img.shields.io/github/stars/joao-eder/driverprecision?style=for-the-badge" alt="Estrelas">
+  <img src="https://img.shields.io/github/repo-size/joao-eder/driverprecision?style=for-the-badge&label=tamanho" alt="Tamanho">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/joao-eder/driverprecision?style=for-the-badge&label=licen%C3%A7a" alt="Licença MIT"></a>
+</p>
 
-Identifica o hardware do PC e instala o driver **correto** para cada dispositivo: o publicado para aquele modelo e Hardware ID exato. Nada de pacote genérico, nada de "driver booster". Também deixa o PC **pronto para jogar** (Visual C++, DirectX, .NET...) e traz uma tela de **otimização avançada** com desfazer.
+<img width="100%" alt="Tela de Drivers do DriverPrecision" src="docs/janela.png" />
 
-*English summary [below](#english).*
+Programa para **Windows 10 e 11** que encontra e instala o **driver correto de cada peça** do computador, deixa o PC **pronto para jogar** e aplica **otimizações que sempre podem ser desfeitas**:
 
-## Download
-
-Vá em **[Releases](https://github.com/joao-eder/driverprecision/releases/latest)** e baixe:
-
-| Arquivo | Para quem |
-|---|---|
-| `DriverPrecision.exe` | Qualquer pessoa. Não precisa de Python. Dois cliques e pronto. |
-| `DriverPrecision-vX.Y.Z.zip` | Quem tem Python 3.10+ e prefere rodar o código-fonte. |
-| `SHA256SUMS.txt` | Hashes para conferir o download. |
-
-O `.exe` é gerado pelo GitHub Actions direto deste código (veja [release.yml](.github/workflows/release.yml)) e não tem assinatura de código: o Windows SmartScreen pode avisar "editor desconhecido". Clique em *Mais informações → Executar assim mesmo*, ou use o `.zip` com Python.
-
-Conferir o hash no PowerShell:
-```powershell
-Get-FileHash .\DriverPrecision.exe -Algorithm SHA256
-```
-
-## Uso (para todo mundo)
-
-1. Dois cliques no `DriverPrecision.exe` e clique em **Sim** no aviso do Windows (precisa de administrador para instalar drivers).
-2. Clique em **Verificar agora**. Em 1 a 3 minutos aparece a lista do que precisa ser instalado ou atualizado, já marcado.
-3. Clique em **Instalar**. O programa cria um ponto de restauração, baixa cada driver do fabricante, confere se o arquivo é autêntico e instala sozinho.
-4. Se pedir, reinicie o computador.
-
-![Janela do DriverPrecision](docs/janela.png)
-
-Só entra na instalação automática o que é seguro: driver ligado ao Hardware ID ou ao modelo exato e com versão comprovadamente mais nova. Itens duvidosos (`VERIFICAR`), BIOS e firmware ficam de fora e aparecem no relatório (botão **Ver relatório completo**).
-
-## Jogos: tudo o que os jogos precisam para abrir
-
-Independente da potência do PC, jogos dependem de bibliotecas que o Windows não traz. Sem elas aparecem erros como *"MSVCP140.dll não encontrado"*, *"d3dx9_43.dll ausente"*, controle que não responde ou jogo que fecha sem aviso.
-
-![Tela Jogos](docs/jogos.png)
-
-| Componente | Por que importa |
-|---|---|
-| Visual C++ 2005, 2008, 2010, 2012, 2013, 2015-2022 (32 e 64 bits) | Cada jogo usa a versão com que foi compilado; jogo 32 bits precisa da versão 32 bits mesmo no Windows 64. A 2015-2022 abaixo de **14.40** faz jogos novos fecharem ao abrir. |
-| DirectX 9/10/11 legado (junho 2010) | O Windows 10/11 **não** traz d3dx9_43, XInput 1.3 e XAudio 2.7. |
-| .NET Framework 3.5 e 4.8, .NET Desktop Runtime 8 e 10 | Launchers, ferramentas de mod e jogos indie. |
-| XNA 4.0, OpenAL | Indies e clássicos (Terraria, Fez, emuladores...). |
-| WebView2 | Launchers modernos ficam com tela branca sem ele. |
-| DirectPlay (opcional), Vulkan (checagem) | Multiplayer de jogos antigos; Vulkan vem com o driver de vídeo. |
-
-Tudo é baixado dos links oficiais (Microsoft; OpenAL da Creative) e só executa com assinatura digital válida do fabricante.
-
-## Otimização avançada
-
-![Tela Otimização](docs/otimizacao.png)
-
-Ajustes profundos que fazem diferença em jogo (não é "limpar arquivos temporários"). Cada um mostra o risco, o estado atual no seu PC e o que faz em português simples.
-
-| Categoria | Ajustes |
-|---|---|
-| Energia e CPU | Plano Desempenho Máximo · estacionamento de núcleos · Power Throttling · prioridade do primeiro plano (`Win32PrioritySeparation`) · timer sem tick dinâmico (BCD) |
-| Placa de vídeo | HAGS · modo MSI na GPU · otimizações de tela cheia · Game DVR · Modo de Jogo · economia de energia do PCIe (ASPM) |
-| Agendador multimídia | `SystemResponsiveness` 0 e prioridade de GPU/CPU para a tarefa *Games* no MMCSS |
-| Rede | `NetworkThrottlingIndex` · algoritmo de Nagle (TcpAckFrequency/TCPNoDelay) · compartilhamento P2P de atualizações · economia de energia do Wi-Fi |
-| Mouse e teclado | aceleração do mouse · suspensão seletiva de USB · repetição do teclado |
-| Windows | apps em segundo plano · efeitos visuais · Inicialização rápida · telemetria · anúncios e apps sugeridos · busca na web (Bing) · atraso da inicialização · hibernação |
-| Disco | TRIM do SSD · registro de último acesso (NTFS) |
-| Segurança x desempenho | Integridade de Memória (VBS/HVCI) — ganha FPS, mas reduz proteção; alguns anti-cheats exigem ligado |
-
-**Segurança:** antes de aplicar, o valor original de cada chave vai para `%LOCALAPPDATA%\DriverPrecision\otimizacao_backup.json` e é criado um ponto de restauração. **Desfazer** devolve exatamente o que estava antes (inclusive apaga o que não existia). O ajuste de timer é bloqueado se o BitLocker estiver ativo, para não pedir a chave de recuperação no próximo boot.
-
-Quer propor um ajuste? Ele é só um item de dados em [`driverprecision_otimiza.py`](driverprecision_otimiza.py) — veja o [CONTRIBUTING](CONTRIBUTING.md).
-
-## Escritório: muitas abas, planilhas, rede e segurança
-
-![Tela Escritório](docs/escritorio.png)
-
-Mesmo motor da Otimização (backup do valor original, Desfazer, aviso de reinício), com ajustes pensados para trabalho:
-
-| Categoria | Ajustes |
-|---|---|
-| Tampa, botões e tela | fechar a tampa não suspende · botões de energia/suspensão sem ação · tela e PC nunca apagam sozinhos (também na tela Otimização) |
-| Memória e muitas abas | compressão de memória · arquivo de paginação automático · SysMain |
-| Navegadores | Chrome: Economia de memória e fechar de verdade · Firefox: sem agente e telemetria em segundo plano |
-| Excel e Office | Office sem animações · Office sem aceleração gráfica (só com sintoma) · LibreOffice: cache de imagens maior |
-| Rede | descoberta de rede · unidades mapeadas em programas de administrador · impressora padrão fixa · placa de rede sem economia de energia · DNS pela VPN · Wi-Fi sem economia · sem P2P de atualizações |
-| Segurança | extensão dos arquivos visível · Defender contra programas indesejados (PUA) · SMB1 desligado · Proteção do sistema ligada |
-| Windows e disco | os ajustes gerais compartilhados com a Otimização |
-
-Ajustes de programas que não estão instalados aparecem como "Não se aplica".
-
-**PC de empresa:** se o computador está num domínio, no Entra ID (Azure AD) ou no Intune, o programa detecta e bloqueia (🔒) o que a TI costuma controlar — políticas, serviços, segurança e energia — para não brigar com a configuração da empresa. O resto continua disponível.
-
-## Saúde do PC
-
-![Tela Saúde do PC](docs/saude.png)
-
-Uma verificação só de leitura: antivírus e vacinas, firewall, atualizações, UAC, SMB1, BitLocker, Inicialização Segura e TPM, pontos de restauração, saúde e espaço dos discos, memória, tempo ligado, programas de inicialização, Office 32/64 bits, rede Pública/Particular e serviço de impressão. Cada item traz a dica do que fazer, em ordem de gravidade.
-
-Reparos com um clique: limpar DNS · destravar impressão · limpar temporários · verificar disco (`chkdsk /scan`) · reparar sistema (`sfc /scannow`) · reparar imagem (`DISM /RestoreHealth`) · redefinir rede.
-
-## Uso avançado (linha de comando)
-
-Com o `.zip` e Python 3.10+:
-```
-python driverprecision.py                     # abre a janela
-python driverprecision.py scan                # somente leitura, gera relatório
-python driverprecision.py auto                # verifica e instala os recomendados, sem perguntas (admin)
-python driverprecision.py baixar ID [ID ...]  # baixa e valida, não instala
-python driverprecision.py instalar [ID ...]   # instala os IDs dados ou os recomendados (admin; pede "SIM", ou --sim)
-```
-
-Os IDs (`LEN:...`, `DELL:...`, `HP:...`, `WU:...`, `CAT:...`) aparecem no relatório.
-Na linha de comando a saída fica em `DriverPrecision_saida\` (relatório HTML + `ultimo_scan.json`) na pasta atual; pela janela, em `%LOCALAPPDATA%\DriverPrecision\saida`. Cache em `%LOCALAPPDATA%\DriverPrecision\cache`.
-
-Opções do scan: `--sem-oem`, `--sem-wu`, `--sem-catalogo`, `--nao-abrir`.
-
-> **Privacidade:** o relatório e o `ultimo_scan.json` contêm o inventário e o número de série do seu PC. Não publique esses arquivos. Nenhum dado é enviado a terceiros: o programa só *baixa* catálogos públicos da Lenovo, Dell, HP e Microsoft.
-
-## Como identifica
-
-1. **Inventário (WMI):** fabricante, modelo, SKU, placa-mãe, BIOS e build do Windows. Para cada dispositivo: Hardware IDs, Compatible IDs, erro do Gerenciador de Dispositivos e driver em uso (versão, data, provedor, INF).
-   - INF `oemNN.inf` = driver de fabricante. Outro nome = driver inbox (genérico) do Windows.
-   - O casamento usa os Hardware IDs + os Compatible IDs que ainda identificam o chip (`VEN&DEV`, `VID&PID`). IDs só de classe (`PCI\CC_`, `USB\CLASS_`) nunca entram.
-
-2. **Fontes, em ordem de confiança**
-
-| # | Fonte | Chave de busca | Integridade |
-|---|-------|----------------|-------------|
-| 1 | Lenovo `catalog/<MT>_Win11.xml` | Machine Type + Hardware ID + versão do driver | SHA-256 do descritor e do instalador |
-| 1 | Dell `CatalogPC.cab` | SystemSKU + `PCIInfo` + SO | MD5 + Authenticode |
-| 1 | HP HPIA `platformList` / `ref/<plat>_64_<SO>.cab` | Platform ID (placa) + Hardware ID + SO | SHA-256 do softpaq |
-| 2 | Windows Update (API WUA, só busca) | Hardware ID casado pelo próprio Windows | assinado pelo WU |
-| 3 | Microsoft Update Catalog | Hardware ID mais específico (SUBSYS / VID&PID) | Authenticode |
-
-   - **Catalog:** a busca do site é textual, então cada resultado é conferido na página do pacote. O Hardware ID do aparelho tem que estar **literalmente** em "Supported Hardware IDs". Se não estiver, ou se o provedor for a própria Microsoft (genérico), o pacote é descartado. Resultado que só bate no chip (`VEN&DEV` sem `SUBSYS`) não é recomendado.
-   - **PC montado ou marca sem catálogo público:** usa as fontes 2 e 3 e mostra a placa-mãe para você buscar no site do fabricante dela.
-
-   **Duas leis valem para toda verificação:**
-
-   - **O driver é do fabricante da PEÇA, não só do PC.** O fabricante do chip sai do próprio Hardware ID (`VEN_8086` = Intel, `VEN_10EC` = Realtek, `VEN_1022` = AMD, `VEN_10DE` = NVIDIA...). O pacote do fabricante do PC só vale quando o catálogo dele lista **esta peça exata** (ID com `SUBSYS`): aí ele validou essa placa naquele modelo. Se a peça foi trocada — ex.: notebook que veio com Wi-Fi Realtek e recebeu uma placa Intel — o catálogo do PC não a reconhece, e o app usa o driver publicado pelo **fabricante da peça** (Intel), entregue pelo Windows Update ou pelo Catálogo da Microsoft. Pacote do PC que bate só pelo chip fica atrás do driver do fabricante da peça. Pacotes de terceiros que reempacotam driver de outro fabricante são descartados.
-   - **Só versões estáveis.** Nada com beta, alpha, preview, pre-release, insider ou release candidate no nome, na versão ou no produto. Entre os drivers válidos, vale a versão estável mais nova.
-
-3. **Status no relatório**
-
-| Status | Significado |
-|---|---|
-| SEM DRIVER / INSTALAR | dispositivo com erro ou sem driver; INSTALAR = driver exato encontrado |
-| SUBSTITUIR | está com driver inbox genérico e existe driver específico |
-| ATUALIZAR | a fonte informa versão de driver mais nova que a instalada |
-| VERIFICAR | a fonte só informa a versão do *pacote*, não a do driver: confira nas notas |
-| GENÉRICO | inbox em classe crítica (vídeo, rede, áudio...) e nenhuma fonte publica driver específico |
-| OK | igual ou mais novo, ou driver de classe padrão do Windows (USB hub, HID, NVMe padrão...) — nesses o driver de classe é o correto e o fabricante não publica outro |
-
-Peça original (que o catálogo do fabricante do PC lista com ID exato) e o fabricante da peça tem versão mais nova:
-
-| Tipo de peça | Vence | Por quê |
-|---|---|---|
-| Wi-Fi, Bluetooth, rede, vídeo | a versão estável mais nova (empate: a do fabricante do PC) | o pacote do PC é o mesmo driver da Intel/Realtek/NVIDIA/AMD repassado, com atraso |
-| Áudio, chipset, Serial IO, Management Engine, controlador de disco, térmico, sensores, touchpad, câmera, biometria, leitor de cartão | a validada pelo fabricante do PC (o relatório mostra a mais nova) | o fabricante do PC ajusta o driver ao modelo e à BIOS |
-| BIOS e firmware | nunca verificados, baixados nem instalados | a versão instalada aparece na Saúde do PC; a atualização a pessoa confere no site do fabricante |
-
-Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o driver do fabricante da peça.
-
-## Como a instalação é protegida
-
-- Exige administrador. Antes de instalar, cria um ponto de restauração do Windows; se não conseguir, pergunta se quer continuar.
-- Todo arquivo baixado é validado (hash do catálogo do fabricante + assinatura digital válida). Se falhar, o arquivo é apagado e nada roda.
-- **BIOS e firmware:** o programa não verifica, não baixa e não instala (nem pela linha de comando). A versão instalada aparece na Saúde do PC; a atualização é por conta da pessoa, pelo site oficial do fabricante, com o carregador conectado.
-- Lenovo: `ExtractCommand` + `Install` do descritor oficial. Dell: `DUP.exe /s`. HP: `spXXXX.exe /s`. Catalog: `expand` + `pnputil /add-driver /install`. WU: API do Windows Update.
-
-## Limitações conhecidas
-
-- A Dell não publica Hardware ID de alguns pacotes (áudio, USB etc.): eles aparecem na seção "pacotes do modelo" como VERIFICAR.
-- Lenovo consumer (IdeaPad/Legion) nem sempre tem catálogo público por MT: nesse caso usa WU + Catalog.
-- GPUs dedicadas (NVIDIA/AMD) em PCs montados: o Catalog tem os drivers WHQL, mas o mais recente costuma sair antes no site do fabricante da GPU.
-- Somente Windows 10/11 x64.
-
-## Desenvolvimento
-
-```
-python -m unittest discover -s tests -v
-```
-Veja [CONTRIBUTING.md](CONTRIBUTING.md) para adicionar um fabricante novo. Mudanças em [CHANGELOG.md](CHANGELOG.md).
-
-## Licença
-
-[MIT](LICENSE). Use, modifique e distribua à vontade. Sem garantia: driver errado pode deixar o PC instável, então leia o relatório antes de instalar.
+- **Drivers** do fabricante da peça (Intel, AMD, NVIDIA, Realtek...) ou do fabricante do PC (Lenovo, Dell, HP)
+- **Jogos**: Visual C++, DirectX, .NET e tudo o que os jogos precisam para abrir
+- **Otimização** para jogos e para **Escritório** (muitas abas, planilhas, rede)
+- **Saúde do PC**: segurança, integridade do Windows e reparos com um clique
 
 ---
 
-## English
+## Principais recursos
 
-**DriverPrecision** inventories a Windows PC and finds the *correct* driver for each device — the one published for that exact model and Hardware ID — never a generic package.
+- **Driver da peça certa**, nunca genérico.
+    - Identifica cada peça pelo Hardware ID e usa o driver de quem a fabricou.
+    - Peça trocada (ex.: Wi-Fi Realtek de fábrica substituído por Intel) recebe o driver do novo fabricante.
+- **Só versões estáveis**: beta, preview, insider e release candidate ficam de fora.
+- **Fontes oficiais**: catálogos da Lenovo, Dell e HP, Windows Update e Catálogo da Microsoft, com hash e assinatura digital conferidos antes de instalar.
+- **Escolha por tipo de peça**:
+    - Wi-Fi, Bluetooth, rede e vídeo → a versão estável mais nova.
+    - Áudio, chipset, disco, térmico, touchpad e câmera → a validada pelo fabricante do PC.
+- **BIOS nunca é tocada**: o programa não verifica, não baixa e não instala BIOS ou firmware. A versão instalada aparece na Saúde do PC.
+- **Tudo com desfazer**: cada ajuste guarda o valor original e volta exatamente como estava.
+- **PC de empresa respeitado**: em domínio, Entra ID ou Intune, o que a TI controla fica bloqueado.
+- **Testado em Windows real** a cada versão, aplicando e desfazendo cada ajuste de verdade.
+- **100% transparente**: código aberto em Python, sem instalador e sem serviço rodando em segundo plano.
 
-- **Sources, in order of trust:** the PC maker's official catalog (Lenovo by Machine Type, Dell by SystemSKU, HP by Platform ID), then Windows Update (search only), then the Microsoft Update Catalog. Every Catalog hit is verified against the package's official *Supported Hardware IDs* list; generic Microsoft drivers and chip-only (`VEN&DEV` without `SUBSYS`) matches are not recommended.
-- **Download:** get `DriverPrecision.exe` (no Python needed) or the source `.zip` from [Releases](https://github.com/joao-eder/driverprecision/releases/latest).
-- **Use:** double-click, accept the UAC prompt, click *Verificar agora* (scan), then *Instalar* (install). It creates a restore point, downloads each driver from the vendor, verifies hash + Authenticode signature and installs silently. Only confident matches with a proven newer version are auto-installed; BIOS/firmware never is. Power users: `python driverprecision.py scan | auto | baixar | instalar`.
-- The UI and report are in Portuguese (pt-BR). Translations are welcome.
-- **Privacy:** the report contains your PC's inventory and serial number; nothing is uploaded anywhere.
+---
 
-License: MIT.
+## Telas
+
+| Jogos | Otimização |
+|---|---|
+| <img src="docs/jogos.png" alt="Tela Jogos"> | <img src="docs/otimizacao.png" alt="Tela Otimização"> |
+| **Escritório** | **Saúde do PC** |
+| <img src="docs/escritorio.png" alt="Tela Escritório"> | <img src="docs/saude.png" alt="Tela Saúde do PC"> |
+
+---
+
+## Requisitos
+
+- **Windows 10 ou 11, 64 bits**
+- **Administrador**
+    - Pedido uma vez, ao abrir. Sem ele, o programa só verifica.
+- **Internet**
+    - Para consultar as fontes e baixar drivers e componentes.
+- **Python 3.10+** (opcional)
+    - Só para rodar pelo código-fonte; o `.exe` não precisa.
+
+---
+
+## Download e uso
+
+1. Baixe o **`DriverPrecision.exe`** em **[Releases](https://github.com/joao-eder/driverprecision/releases/latest)**.
+2. Abra e aceite o aviso do Windows.
+    - Se aparecer "editor desconhecido": **Mais informações → Executar assim mesmo** (o `.exe` é compilado pelo GitHub Actions a partir deste código, sem certificado pago).
+3. Na tela **Drivers**, clique em **Verificar agora** e depois em **Instalar**.
+4. Use as telas **Jogos**, **Otimização**, **Escritório** e **Saúde do PC** como quiser — tudo pode ser desfeito.
+
+Conferir o arquivo baixado: `Get-FileHash .\DriverPrecision.exe -Algorithm SHA256` e compare com o `SHA256SUMS.txt` da release.
+
+---
+
+## Documentação
+
+- **[Como funciona](docs/COMO-FUNCIONA.md)**: fontes, regras de escolha do driver, cada ajuste, linha de comando e limitações.
+- **[Histórico de versões](CHANGELOG.md)**
+- **[Como contribuir](CONTRIBUTING.md)** · **[Segurança](SECURITY.md)**
+
+---
+
+## Créditos
+
+- [Microsoft](https://www.catalog.update.microsoft.com)
+    - Windows Update e Microsoft Update Catalog
+- [Lenovo](https://pcsupport.lenovo.com), [Dell](https://www.dell.com/support), [HP](https://support.hp.com)
+    - Catálogos públicos de drivers por modelo
+- Intel, AMD, NVIDIA, Realtek e demais fabricantes
+    - Drivers das peças, publicados e assinados por eles
+
+---
+
+## Licença
+
+[MIT](LICENSE). Sem garantia: leia o relatório antes de instalar.
+
+*English: Windows app that installs the correct, stable driver for each part (from the part maker or the PC maker), plus game runtimes, reversible tweaks and a PC health check. UI in Portuguese. See [docs/COMO-FUNCIONA.md](docs/COMO-FUNCIONA.md#english).*
