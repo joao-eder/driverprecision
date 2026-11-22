@@ -333,6 +333,15 @@ def t_gui() -> None:
         if ImageGrab:
             x, y = root.winfo_rootx(), root.winfo_rooty()
             ImageGrab.grab((x, y, x + root.winfo_width(), y + root.winfo_height())).save(saida / f"tela_{chave}.png")
+    for aba, nome in ((ao, "Otimização"), (ae, "Escritório")):
+        cx = {i for i in aba.ajustes if aba.tree.set(i, "sel") != ""}
+        aba.marcar_todos(); root.update()
+        (ok if aba.marcados == cx else falha)(f"{nome}: 'Marcar todos' marcou {len(aba.marcados)} de {len(cx)} com caixinha")
+        aba.desmarcar_todos(); root.update()
+        (ok if not aba.marcados else falha)(f"{nome}: 'Desmarcar todos' limpou a seleção")
+    cxj = {i for i in aj.tree.get_children() if aj.tree.set(i, "sel") != ""}
+    aj.marcar_todos(); aj.desmarcar_todos(); root.update()
+    (ok if not aj.marcados else falha)(f"Jogos: marcar/desmarcar todos ({len(cxj)} com caixinha)")
     ao.recomendados()
     root.update()
     ok(f"'Marcar recomendados' marcou {len(ao.marcados)} ajustes")

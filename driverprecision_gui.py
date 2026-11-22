@@ -62,6 +62,7 @@ class App:
         self.passo.pack(anchor="w")
         self.barra = ttk.Progressbar(self.corpo, mode="indeterminate")
 
+        self.barra_sel = tema.barra_selecao(self.corpo, self.marcar_todos, self.desmarcar_todos)
         self.lista_frame, self.tree = tema.lista(self.corpo, columns=("sel", "disp", "atual", "novo", "fonte"),
                                                  show="headings", selectmode="none")
         for col, txt, w, anc in (("sel", "", 36, "center"), ("disp", "Peça do computador", 200, "w"),
@@ -144,6 +145,7 @@ class App:
         self.btn.config(state="disabled")
         self.btn2.pack_forget()
         self.btn_bios.pack_forget()
+        self.barra_sel.pack_forget()
         self.lista_frame.pack_forget()
         self.aviso.pack_forget()
         self.msg.config(text=texto, foreground="")
@@ -182,7 +184,7 @@ class App:
         self.btn2.pack(side="right", padx=(0, 10))
         s = e["system"]
         self.passo.config(text=f"{s.get('mfr') or ''} {s.get('model') or ''} · {s.get('os') or ''} · "
-                               f"{len(e['devices'])} peças verificadas")
+                               f"{len(e['devices'])} peças verificadas\n{dp.resumo_bios(e)}")
         rec = dp.recomendados(e)
         self.tree.delete(*self.tree.get_children())
         self.itens.clear()
@@ -204,16 +206,16 @@ class App:
             extras.append(f"{n_ver} item(ns) precisam de conferência técnica e não serão instalados "
                           "automaticamente (veja o relatório).")
         for f in dp.avisos_firmware(e):
-            onde = "instalada " + f["instalada"] + ", " if f["instalada"] else ""
-            extras.append(f"⚠ {'BIOS' if f['bios'] else 'Firmware'} com versão nova: {onde}disponível {f['disponivel']}"
-                          + (f" ({f['data']})" if f["data"] else "") + ". O programa não instala BIOS/firmware: "
-                          "confira na página do fabricante e instale com o carregador conectado.")
             self.link_bios = self.link_bios or f["link"]
+            if not f["bios"]:  # a BIOS já aparece na linha fixa acima; aqui só os outros firmwares
+                extras.append(f"⚠ Firmware com versão nova: {f['titulo']} {f['disponivel']}. O programa não baixa nem "
+                              "instala firmware: confira na página do fabricante.")
         if self.link_bios:
             self.btn_bios.pack(side="right", padx=(0, 10))
         if rec:
             self.msg.config(text=f"Encontramos {len(rec)} driver(s) para instalar ou atualizar.", foreground=AZUL)
-            self.lista_frame.pack(fill="both", expand=True, pady=(8, 4))
+            self.barra_sel.pack(fill="x", pady=(8, 6))
+            self.lista_frame.pack(fill="both", expand=True, pady=(0, 4))
             self._atualiza_botao()
         else:
             self.msg.config(text="✔ Tudo certo! Os drivers deste computador estão em dia.", foreground=VERDE)
@@ -233,6 +235,18 @@ class App:
             self.marcados.add(iid)
             self.tree.set(iid, "sel", "☑")
         self._atualiza_botao()
+
+    def _marcar(self, sim: bool) -> None:
+        for iid in self.tree.get_children():
+            (self.marcados.add if sim else self.marcados.discard)(iid)
+            self.tree.set(iid, "sel", "☑" if sim else "☐")
+        self._atualiza_botao()
+
+    def marcar_todos(self) -> None:
+        self._marcar(True)
+
+    def desmarcar_todos(self) -> None:
+        self._marcar(False)
 
     def _atualiza_botao(self) -> None:
         n = len(self.marcados)

@@ -139,8 +139,8 @@ def avaliar(d: dict, amb: dict | None = None) -> list[dict]:
     rl = d.get("restauracao_ligada")
     if rl is False:
         item(g, "restauracao", "Pontos de restauração", ATENCAO, "Proteção do sistema desligada",
-             "Ligue em Escritório > Segurança: é o 'voltar no tempo' quando uma atualização ou programa estraga o Windows.",
-             ajuste="restauracao")
+             "Sugestão: ligue em Painel de Controle > Sistema > Proteção do sistema (disco C: > Configurar > Ativar). "
+             "É o 'voltar no tempo' quando uma atualização ou programa estraga o Windows. O DriverPrecision não muda isso.")
     elif rl:
         rd = d.get("restauracao_dias")
         item(g, "restauracao", "Pontos de restauração", OK if rd is not None and rd <= 30 else INFO,

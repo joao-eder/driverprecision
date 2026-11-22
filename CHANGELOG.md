@@ -2,6 +2,17 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.4.5] - 2026-11-22
+
+### Adicionado
+- Botões **"Marcar todos"** e **"Desmarcar todos"** acima das listas das telas Drivers, Jogos, Otimização e Escritório (só marcam o que tem caixinha: instalados, "não se aplica" e bloqueados pela empresa ficam de fora). "Marcar recomendados" foi para a mesma barra.
+- **BIOS sempre visível** na tela de Drivers: versão instalada e se é a mais nova publicada pelo fabricante. Só aviso.
+- **ASUS:** a versão de BIOS mais nova publicada para o modelo é conferida no site de suporte da ASUS (só a lista de versões; nenhum arquivo é baixado).
+
+### Alterado
+- **BIOS/firmware nunca é baixado, de nenhuma marca** — nem pela linha de comando. O programa só lê a versão instalada e a lista de versões publicadas.
+- **Proteção do sistema (pontos de restauração):** o ajuste que a ligava foi retirado; o programa não muda essa configuração. A Saúde do PC só verifica e sugere como ligar.
+
 ## [1.4.4] - 2026-11-21
 
 ### Corrigido
@@ -132,6 +143,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.4.5]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.5
 [1.4.4]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.4
 [1.4.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.3
 [1.4.2]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.2

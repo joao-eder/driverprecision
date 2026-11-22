@@ -768,6 +768,42 @@ def fonte_hp(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
     return f"ok - {len(sp)} softpaqs na referência {osv}.{rid}, {n} associações"
 
 
+# --------------------------------------------------------------------------- fonte: ASUS (só BIOS)
+
+def modelo_asus(sysinfo: dict) -> str:
+    """Modelo curto da ASUS (ex.: M1502IA). A BIOS da ASUS vem como 'M1502IA.312'."""
+    bios = (sysinfo.get("bios") or "").strip().upper()
+    m = re.fullmatch(r"([A-Z0-9]{4,20})\.(\d{3,4})", bios)
+    if m and m.group(1) in (sysinfo.get("model") or "").upper().replace("_", " ").split() + [
+            x for x in re.split(r"[ _]", (sysinfo.get("model") or "").upper())]:
+        return m.group(1)
+    return m.group(1) if m else ""
+
+
+def fonte_asus(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
+    """A ASUS não lista os Hardware IDs dos pacotes: daqui só sai a BIOS (versão publicada x instalada), para AVISO."""
+    modelo = modelo_asus(sysinfo)
+    if not modelo:
+        return f"BIOS '{sysinfo.get('bios')}' não está no formato da ASUS (modelo.versão)"
+    instalada = int((sysinfo.get("bios") or "0").rsplit(".", 1)[-1] or 0)
+    url = f"https://www.asus.com/support/api/product.asmx/GetPDBIOS?website=global&model={urllib.parse.quote(modelo)}&pdhashedid="
+    dados = json.loads(cached(url, f"asus_bios_{modelo}.json", 24, timeout=60).decode("utf-8-sig"))
+    arquivos = [f for g in ((dados.get("Result") or {}).get("Obj") or []) if re.search(r"\bBIOS\b", g.get("Name") or "", re.I)
+                for f in (g.get("Files") or [])]
+    versoes = [(int(re.sub(r"\D", "", f.get("Version") or "") or 0), f) for f in arquivos]
+    versoes = [(v, f) for v, f in versoes if v and estavel({"title": f.get("Title"), "version": f.get("Version")})]
+    if not versoes:
+        return f"ok - nenhuma BIOS publicada para {modelo}"
+    v, f = max(versoes, key=lambda x: x[0])
+    sistema.append({"cid": f"ASUS:BIOS:{modelo}:{v}", "source": "OEM", "source_name": f"ASUS ({modelo})",
+                    "title": f.get("Title") or "BIOS", "version": str(v), "date": (f.get("ReleaseDate") or "")[:10],
+                    "category": "BIOS", "kind": "firmware", "level": "exato", "match_id": "BIOS " + (sysinfo.get("bios") or ""),
+                    "status": "ATUALIZAR" if v > instalada else "OK",
+                    "url": f"https://www.asus.com/supportonly/{modelo}/helpdesk_bios/",
+                    "note": "BIOS: o programa só avisa; atualize pela página da ASUS, com o carregador conectado"})
+    return f"ok - BIOS mais nova publicada para {modelo}: {v} (instalada: {instalada})"
+
+
 # --------------------------------------------------------------------------- fonte: Windows Update
 
 PS_WU = r"""
@@ -1089,7 +1125,8 @@ def fabricante(sysinfo: dict) -> str:
     return ""
 
 
-CATALOGOS_OEM = {"lenovo": "fonte_lenovo", "dell": "fonte_dell", "hp": "fonte_hp"}
+CATALOGOS_OEM = {"lenovo": "fonte_lenovo", "dell": "fonte_dell", "hp": "fonte_hp", "asus": "fonte_asus"}
+OEM_COM_DRIVERS = {"lenovo", "dell", "hp"}  # catálogos que listam drivers por Hardware ID (a ASUS, só BIOS)
 
 
 def links_oem(sysinfo: dict) -> list[tuple[str, str]]:
@@ -1102,6 +1139,8 @@ def links_oem(sysinfo: dict) -> list[tuple[str, str]]:
                       + urllib.parse.quote((sysinfo.get("serial") or "").strip()) + "/drivers"))
     elif f == "hp":
         links.append(("Suporte HP", "https://support.hp.com/drivers"))
+    elif f == "asus" and modelo_asus(sysinfo):
+        links.append(("Suporte ASUS do modelo (BIOS)", f"https://www.asus.com/supportonly/{modelo_asus(sysinfo)}/helpdesk_bios/"))
     else:
         bb = f"{sysinfo.get('bbmfr') or ''} {sysinfo.get('bbproduct') or ''}".strip()
         if bb:
@@ -1146,7 +1185,7 @@ def scan(args) -> dict:
             fontes["MS Update Catalog"] = f"falhou: {e}"
         log("      " + fontes["MS Update Catalog"])
     log("[5/5] Analisando...")
-    oem_ok = any(k.startswith("OEM ") and str(v).startswith("ok") for k, v in fontes.items())
+    oem_ok = f in OEM_COM_DRIVERS and any(k.startswith("OEM ") and str(v).startswith("ok") for k, v in fontes.items())
     for d in devs:
         d["pc_oem"], d["oem_consultado"] = f, oem_ok
         avaliar(d)
@@ -1339,6 +1378,8 @@ def url_download_catalogo(uid: str) -> str:
 
 
 def baixar_um(c: dict) -> Path | None:
+    if c.get("kind") == "firmware":  # BIOS/firmware: só aviso; nem o download é feito pelo programa
+        raise RuntimeError("BIOS/firmware não é baixado nem instalado pelo programa: use a página do fabricante")
     if c["source"] == "WU":
         log(f"  {c['cid']}: Windows Update baixa e valida sozinho na instalação.")
         return None
@@ -1480,6 +1521,21 @@ def avisos_firmware(e: dict) -> list[dict]:
     return out
 
 
+def resumo_bios(e: dict) -> str:
+    """Linha sempre visível na tela de Drivers: BIOS instalada e se há versão nova (só aviso)."""
+    s = e.get("system") or {}
+    inst = s.get("bios") or "?"
+    novas = [f for f in avisos_firmware(e) if f["bios"]]
+    if novas:
+        f = novas[0]
+        return (f"BIOS: instalada {inst} · ⚠ versão nova disponível: {f['disponivel']}" + (f" ({f['data']})" if f["data"] else "")
+                + " — o programa não baixa nem instala BIOS; use a página do fabricante, com o carregador conectado.")
+    if any(re.search(r"bios", f"{x.get('category')} {x.get('title')}", re.I) for x in e.get("sistema") or []):
+        return f"BIOS: instalada {inst} · ✔ em dia (é a mais nova publicada pelo fabricante)."
+    return (f"BIOS: instalada {inst} · não dá para conferir a mais nova: o fabricante deste PC não publica catálogo. "
+            "Confira no site de suporte dele.")
+
+
 def recomendados(e: dict) -> list[tuple[dict, dict]]:
     """O que o modo automático instala: só driver com correspondência confiável e versão comprovadamente melhor."""
     out = []
@@ -1565,8 +1621,8 @@ def cmd_instalar(args) -> None:
     ok, msg = ponto_restauracao()
     log("  " + ("criado" if ok else f"não foi possível: {msg}"))
     if not ok:
-        log("  Dica: a Proteção do sistema parece desligada. Ligue em Escritório > Segurança > 'Proteção do sistema' "
-            "(ou Painel de Controle > Sistema > Proteção do sistema) para ter como voltar atrás.")
+        log("  Sugestão: a Proteção do sistema parece desligada. Para ter como voltar atrás, ligue em "
+            "Painel de Controle > Sistema > Proteção do sistema (o programa não muda essa configuração).")
     if not ok and not args.sim and not confirma("Continuar sem ponto de restauração? (SIM/não): "):
         sys.exit("Cancelado.")
     r = instalar_lista(cs)

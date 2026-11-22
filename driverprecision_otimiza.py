@@ -634,7 +634,9 @@ AJUSTES += [
                       "else{Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart | Out-Null}"},
      "desc": "Porta usada pelo WannaCry. Atenção: NAS e impressoras multifuncionais muito antigas (escanear para pasta) podem "
              "precisar dele. Se pararem de funcionar, use Desfazer."},
-    {"id": "restauracao", "perfis": ESC, "cat": "Segurança", "nome": "Proteção do sistema (pontos de restauração) ligada",
+    # Proteção do sistema: o programa NÃO liga nem desliga (decisão do usuário). Fica fora das telas; a Saúde do PC
+    # só verifica e sugere. Mantido aqui apenas para desfazer, se alguém aplicou numa versão antiga.
+    {"id": "restauracao", "perfis": (), "cat": "Segurança", "nome": "Proteção do sistema (pontos de restauração) ligada",
      "risco": "baixo", "tipo": "ps",
      "ps": {"ler": "[int](Get-CimInstance -Namespace root/default -ClassName SystemRestoreConfig).RPSessionInterval", "alvo": "1",
             "gravar": "if('{v}' -eq '1'){Enable-ComputerRestore -Drive \"$env:SystemDrive\\\"}"},

@@ -128,6 +128,16 @@ def quebra_automatica(frame, *rotulos) -> None:
     frame.bind("<Configure>", ajusta, add="+")
 
 
+def barra_selecao(parent, marcar, desmarcar, extra: tuple | None = None) -> ttk.Frame:
+    """Barra acima de uma lista: [extra] [Marcar todos] [Desmarcar todos], alinhada à direita."""
+    bar = ttk.Frame(parent)
+    ttk.Button(bar, text="Desmarcar todos", style="Rep.TButton", command=desmarcar).pack(side="right")
+    ttk.Button(bar, text="Marcar todos", style="Rep.TButton", command=marcar).pack(side="right", padx=(0, 6))
+    if extra:
+        ttk.Button(bar, text=extra[0], style="Rep.TButton", command=extra[1]).pack(side="right", padx=(0, 6))
+    return bar
+
+
 def texto_log(parent, **kw) -> tk.Text:
     """Caixa de detalhes técnicos, no tom do tema."""
     return tk.Text(parent, font=("Consolas", 9), wrap="word", state="disabled", bg=CARTAO, fg=SUAVE,

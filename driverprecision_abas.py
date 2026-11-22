@@ -127,7 +127,8 @@ class AbaJogos(Aba):
         self.itens: dict[str, dict] = {}
         self.marcados: set[str] = set()
         fr, self.tree = tema.lista(self.corpo, columns=("sel", "nome", "sit", "det"), show="headings", selectmode="browse")
-        fr.pack(fill="both", expand=True, pady=(4, 0))
+        tema.barra_selecao(self.corpo, self.marcar_todos, self.desmarcar_todos).pack(fill="x", pady=(4, 6))
+        fr.pack(fill="both", expand=True)
         for c, t, w, st in (("sel", "", 36, False), ("nome", "Componente", 230, True), ("sit", "Situação", 130, False),
                             ("det", "Detalhe", 190, True)):
             self.tree.heading(c, text=t)
@@ -207,6 +208,19 @@ class AbaJogos(Aba):
         if s and s[0] in self.itens:
             self.desc.config(text=self.itens[s[0]]["desc"])
 
+    def _marcar(self, sim: bool) -> None:
+        for iid in self.tree.get_children():
+            if iid in self.itens and self.tree.set(iid, "sel") != "":  # só o que tem caixinha (dá para instalar)
+                (self.marcados.add if sim else self.marcados.discard)(iid)
+                self.tree.set(iid, "sel", ON if sim else OFF)
+        self._botao()
+
+    def marcar_todos(self) -> None:
+        self._marcar(True)
+
+    def desmarcar_todos(self) -> None:
+        self._marcar(False)
+
     def instalar(self) -> None:
         ids = [i for i in self.tree.get_children() if i in self.marcados]
         if not messagebox.askokcancel("Instalar componentes",
@@ -248,7 +262,9 @@ class AbaOtimizacao(Aba):
         self.ajustes: dict[str, dict] = {}
         self.marcados: set[str] = set()
         fr, self.tree = tema.lista(self.corpo, columns=("sel", "risco", "estado"), show="tree headings", selectmode="browse")
-        fr.pack(fill="both", expand=True, pady=(4, 0))
+        tema.barra_selecao(self.corpo, self.marcar_todos, self.desmarcar_todos,
+                           ("Marcar recomendados", self.recomendados)).pack(fill="x", pady=(4, 6))
+        fr.pack(fill="both", expand=True)
         self.tree.heading("#0", text="Ajuste")
         self.tree.column("#0", width=290, minwidth=200, stretch=True)
         for c, t, w in (("sel", "", 36), ("risco", "Risco", 70), ("estado", "Estado atual", 200)):
@@ -271,8 +287,6 @@ class AbaOtimizacao(Aba):
         self.btn_desf.pack(side="right", padx=(0, 8))
         self.btn_tudo = ttk.Button(self.base, text="Desfazer tudo", command=self.desfazer_tudo)
         self.btn_tudo.pack(side="right", padx=(0, 8))
-        self.btn_rec = ttk.Button(self.base, text="Recomendados", command=self.recomendados)
-        self.btn_rec.pack(side="left", padx=(8, 0))
         self.msg.config(text="Lendo configurações atuais...")
         self._botoes(False)
         self.trabalhar(lambda: self.q.put(("lista", ot.listar(self.perfil))))
@@ -346,6 +360,18 @@ class AbaOtimizacao(Aba):
             if a.get("bloqueado"):
                 extra += f" [{a['bloqueado'][0].upper() + a['bloqueado'][1:]}.]"
             self.desc.config(text=f"{a['nome']} — risco {a['risco']}. {a['desc']}{extra}")
+
+    def _marcar(self, sim: bool) -> None:
+        for iid in self.ajustes:  # só ajustes com caixinha (não as categorias, nem "não se aplica"/empresa)
+            if self.tree.exists(iid) and self.tree.set(iid, "sel") != "":
+                (self.marcados.add if sim else self.marcados.discard)(iid)
+                self.tree.set(iid, "sel", ON if sim else OFF)
+
+    def marcar_todos(self) -> None:
+        self._marcar(True)
+
+    def desmarcar_todos(self) -> None:
+        self._marcar(False)
 
     def recomendados(self) -> None:
         for iid, a in self.ajustes.items():
