@@ -30,7 +30,7 @@ Programa para **Windows 10 e 11** que encontra e instala o **driver correto de c
     - Identifica cada peça pelo Hardware ID e usa o driver de quem a fabricou.
     - Peça trocada (ex.: Wi-Fi Realtek de fábrica substituído por Intel) recebe o driver do novo fabricante.
 - **Só versões estáveis**: beta, preview, insider e release candidate ficam de fora.
-- **Fontes oficiais**: catálogos da Lenovo, Dell e HP, **sites da NVIDIA e da AMD** (Game Ready e Adrenalin WHQL), Windows Update e Catálogo da Microsoft, com hash e assinatura digital conferidos antes de instalar.
+- **Fontes oficiais**: catálogos da Lenovo, Dell e HP, **site da NVIDIA** (Game Ready WHQL; a AMD é avisada com link para a página oficial), Windows Update e Catálogo da Microsoft, com hash e assinatura digital conferidos antes de instalar.
 - **Escolha por tipo de peça**:
     - Wi-Fi, Bluetooth, rede e vídeo → a versão estável mais nova.
     - Áudio, chipset, disco, térmico, touchpad e câmera → a validada pelo fabricante do PC.

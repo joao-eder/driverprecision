@@ -62,8 +62,14 @@ class Amd(Base):
         self.assertEqual(d["status"], "ATUALIZAR")
         b = d["melhor"]
         self.assertEqual((b["source"], b["amd_version"], b["signer"]), ("AMD", "26.11.2", "Advanced Micro Devices"))
-        self.assertTrue(b["interativo"])
         self.assertIn("26.10.20.01", d["motivo"])
+        self.assertIn("site da AMD", d["motivo"])
+        self.assertEqual(dp.recomendados({"devices": [d]}), [])        # não entra na instalação automática
+        av = dp.avisos_site_fabricante({"devices": [d]})
+        self.assertEqual((av[0]["versao"], av[0]["pagina"][:24]), ("26.11.2", "https://www.amd.com/en/r"))
+        ok, _, msg = dp.instalar_um(b)                                    # nem pedindo direto
+        self.assertFalse(ok)
+        self.assertIn("site", msg)
         self.assertFalse(any("beta" in u for u in self.pedidos))
 
     def test_placa_antiga_usa_a_linha_dela(self):
@@ -95,15 +101,6 @@ class Amd(Base):
         self.assertIn("não comparado", r)
         dp.avaliar(d)
         self.assertFalse(d.get("melhor") and d["melhor"]["source"] == "AMD")
-
-    def test_confere_versao_depois_de_instalar(self):
-        c = {"source": "AMD", "alvo_id": "PCI\\X", "version": "26.20.29.02", "amd_version": "26.11.2"}
-        self.instalada = "26.20.29.02-261116a-206168C"
-        self.assertTrue(dp.conferir_versao(c, "ok")[0])
-        self.instalada = "26.10.20.01-260810a"
-        ok, msg = dp.conferir_versao(c, "ok")
-        self.assertFalse(ok)
-        self.assertIn("26.11.2", msg)
 
 
 if __name__ == "__main__":

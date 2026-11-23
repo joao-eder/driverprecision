@@ -920,7 +920,11 @@ def fonte_amd(sysinfo: dict, devs: list[dict]) -> str:
             "version": (p.get("internalbuildversion") or "").split("-")[0], "amd_version": p.get("externalbuildversion"),
             "date": p.get("releasedate"), "provider": "Advanced Micro Devices", "match_id": sku, "level": "fabricante",
             "kind": "driver", "url": url, "file": url.rsplit("/", 1)[-1], "signer": "Advanced Micro Devices",
-            "readme": p.get("releasenotes") or "", "interativo": True, "category": "Display",
+            "readme": p.get("releasenotes") or "", "category": "Display",
+            # a AMD só entrega o instalador para quem baixa pelo site dela (download direto devolve uma página):
+            # o programa avisa e abre a página oficial; não baixa nem instala
+            "manual": "a AMD só libera o download pelo site dela: use o botão 'Abrir site da AMD'",
+            "pagina": p.get("releasenotes") or "https://www.amd.com/en/support/download/drivers.html",
             "size": int(float(p.get("fullbuildfilesize") or 0) * 1e6)})
         achados.append(f"{d.get('name')} ({sku}): Adrenalin {p.get('externalbuildversion')}" +
                        ("" if d["amd_release"] else " (versão instalada não informada pelo driver: não comparado)"))
@@ -1163,7 +1167,8 @@ def avaliar(d: dict) -> None:
             # o site da AMD tem Adrenalin estável mais novo, e esta placa está na lista oficial dele: ele é o escolhido
             d["melhor"], d["alternativas"], d["instaveis"] = c, [x for x in d["cands"] if x is not c], 0
             d["fabricante_peca"], d["status"] = "AMD", "ATUALIZAR"
-            d["motivo"] = f"Adrenalin instalado {rel.split('-')[0]} → {c['amd_version']} ({c['version']}), do site da AMD"
+            d["motivo"] = (f"Adrenalin instalado {rel.split('-')[0]} → {c['amd_version']} ({c['version']}) disponível no site da AMD; "
+                           "baixe e instale pela página oficial (botão 'Abrir site da AMD')")
             d["alt_nova"] = None
             return
         d["cands"] = [x for x in d["cands"] if x["source"] != "AMD"]  # não é mais novo (ou não dá para comparar)
@@ -1623,10 +1628,6 @@ def instalar_um(c: dict) -> tuple[bool, bool, str]:
     arq = baixar_um(c)
     assert arq
     pasta = arq.parent
-    if c["source"] == "AMD":  # instalador oficial da AMD, conferido; a pessoa segue as telas dele
-        log("  abrindo o instalador oficial da AMD: siga as telas dele (o programa espera terminar)")
-        rc = subprocess.run([str(arq)], cwd=pasta).returncode
-        return rc in RC_OK, rc in RC_REBOOT, f"instalador da AMD: código {rc}"
     if c["source"] == "NV":  # instalador oficial da NVIDIA, modo silencioso, sem reiniciar
         rc = _run([str(arq), "-s", "-noreboot", "-noeula"], pasta, 3600)
         return rc in RC_OK or rc == 1, rc in RC_REBOOT, f"instalador da NVIDIA: código {rc}"
@@ -1666,6 +1667,13 @@ def ponto_restauracao() -> tuple[bool, str]:
         return False, str(ex).split(" At line:")[0][:300]
 
 
+def avisos_site_fabricante(e: dict) -> list[dict]:
+    """Drivers mais novos que só o site do fabricante entrega (ex.: AMD): aviso com a página oficial."""
+    return [{"peca": d["name"], "versao": d["melhor"].get("amd_version") or d["melhor"].get("version"),
+             "fabricante": d["melhor"].get("provider"), "pagina": d["melhor"]["pagina"]}
+            for d in e.get("devices") or [] if d.get("status") == "ATUALIZAR" and (d.get("melhor") or {}).get("pagina")]
+
+
 def recomendados(e: dict) -> list[tuple[dict, dict]]:
     """O que o modo automático instala: só driver com correspondência confiável e versão comprovadamente melhor."""
     out = []
@@ -1696,12 +1704,6 @@ def versao_instalada(instance_id: str) -> str:
 
 def conferir_versao(c: dict, msg: str) -> tuple[bool, str]:
     """Depois de voltar para a versão do fabricante do PC: o Windows costuma preferir o driver mais novo."""
-    if c.get("source") == "AMD":
-        agora = amd_versao_instalada(c["alvo_id"])
-        if agora and _amd_num(agora) >= _amd_num(c["version"]):
-            return True, msg + f" (conferido: {agora.split('-')[0]})"
-        return False, (f"o driver de vídeo continua {(agora or '?').split('-')[0]}: o instalador da AMD não concluiu a troca "
-                       f"para {c.get('amd_version')}. Reinicie e verifique de novo; se continuar, instale pelo amd.com.")
     agora = versao_instalada(c["alvo_id"])
     f = nv_de_windows if c.get("source") == "NV" else (lambda v: v)
     if agora and vcmp(f(agora), f(c.get("version"))) == 0:
@@ -1724,7 +1726,7 @@ def instalar_lista(cs: list[dict], progresso=None) -> dict:
         log(f"\n[{n}/{len(cs)}] {c['title']}  ({c['cid']})")
         try:
             ok, rb, msg = instalar_um(c)
-            if ok and (c.get("voltar_versao") or c["source"] in ("NV", "AMD")) and c.get("alvo_id"):
+            if ok and (c.get("voltar_versao") or c["source"] == "NV") and c.get("alvo_id"):
                 ok, msg = conferir_versao(c, msg)
         except Exception as ex:
             ok, rb, msg = False, False, str(ex)

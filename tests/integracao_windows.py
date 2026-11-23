@@ -473,13 +473,10 @@ def t_amd() -> None:
                           f" | começa com {cab[:2]!r} | {cab[:160]!r}")
             except Exception as ex:
                 print(f"    {rotulo}: {type(ex).__name__}: {str(ex)[:160]}")
-        dp.OUT = Path(tempfile.mkdtemp())
-        t0 = time.time()
-        try:
-            arq = dp.baixar_um(c)
-            ok(f"baixou {arq.stat().st_size / 1e6:.0f} MB em {time.time() - t0:.0f} s, assinatura da AMD confere")
-        except Exception as ex:
-            falha(f"download/assinatura do Adrenalin: {ex}")
+        (ok if c.get("manual") and str(c.get("pagina", "")).startswith("https://www.amd.com/") else falha)(
+            f"AMD: só aviso + página oficial ({c.get('pagina', '')[:80]}); o programa não baixa o instalador")
+        (ok if not dp.recomendados({"devices": [dict(d, status="ATUALIZAR", melhor=c)]}) else falha)(
+            "AMD: fora da instalação automática")
 
 
 # ------------------------------------------------------------------ sondagem dos sites dos fabricantes

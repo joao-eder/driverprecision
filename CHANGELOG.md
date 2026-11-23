@@ -5,7 +5,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 ## [1.6.0] - 2026-11-23
 
 ### Adicionado
-- **Drivers da AMD direto do site oficial (Adrenalin WHQL).** O programa lê a lista que a AMD publica para cada versão estável, com os chips aceitos (código do chip + revisão). Só oferece a versão se a sua placa estiver literalmente nessa lista — placas mais antigas recebem a linha de driver delas. A comparação usa a versão de lançamento da AMD gravada no driver instalado. Baixa só do domínio da AMD, exige a assinatura digital da AMD e abre o instalador oficial para você seguir as telas; depois confere a versão que ficou. Beta nunca é consultado.
+- **AMD: versão estável mais nova pelo site oficial (Adrenalin WHQL).** O programa lê a lista que a AMD publica para cada versão estável, com os chips aceitos (código do chip + revisão), e só considera a versão se a sua placa estiver nessa lista — placas mais antigas recebem a linha de driver delas. A comparação usa a versão de lançamento da AMD gravada no driver instalado. Como a AMD só libera o download pelo site dela (o download direto devolve uma página "Download Not Complete"), o programa **avisa** na tela de Drivers e o botão **"Abrir site da AMD"** abre a página oficial daquela versão; o download e a instalação ficam com a pessoa. Beta nunca é consultado.
+- Arquivo baixado com assinatura inválida agora é apagado na hora.
+- Tela de Drivers: avisos acima da lista (antes podiam ficar fora da tela); botão "Mostrar detalhes" virou "Detalhes".
 
 ## [1.5.0] - 2026-11-23
 

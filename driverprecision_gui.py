@@ -2,7 +2,7 @@
 Interface gráfica do DriverPrecision para usuário comum.
 
 Fluxo: [Verificar agora] -> lista do que foi encontrado (já marcado) -> [Instalar] -> pronto.
-Tudo o que é técnico fica no relatório e em "Mostrar detalhes".
+Tudo o que é técnico fica no relatório e em "Detalhes".
 """
 from __future__ import annotations
 
@@ -84,7 +84,9 @@ class App:
         self.btn = ttk.Button(base, text="Verificar agora", style="Grande.TButton", command=self.verificar)
         self.btn.pack(side="right")
         self.btn2 = ttk.Button(base, text="Ver relatório completo", command=self.abrir_relatorio)
-        self.btn_det = ttk.Button(base, text="Mostrar detalhes", command=self._detalhes)
+        self.btn_site = ttk.Button(base, text="Abrir site da AMD", command=self.abrir_site)
+        self.paginas_site: list[str] = []
+        self.btn_det = ttk.Button(base, text="Detalhes", command=self._detalhes)
         self.btn_det.pack(side="left")
 
         if not dp.is_admin():
@@ -97,10 +99,10 @@ class App:
     def _detalhes(self) -> None:
         if self.det_frame.winfo_ismapped():
             self.det_frame.pack_forget()
-            self.btn_det.config(text="Mostrar detalhes")
+            self.btn_det.config(text="Detalhes")
         else:
             self.det_frame.pack(fill="both", expand=True, pady=(8, 0))
-            self.btn_det.config(text="Ocultar detalhes")
+            self.btn_det.config(text="Ocultar")
 
     def _log(self, m: str) -> None:
         self.txt.configure(state="normal")
@@ -142,6 +144,7 @@ class App:
     def _ocupado(self, texto: str) -> None:
         self.btn.config(state="disabled")
         self.btn2.pack_forget()
+        self.btn_site.pack_forget()
         self.barra_sel.pack_forget()
         self.lista_frame.pack_forget()
         self.aviso.pack_forget()
@@ -203,6 +206,13 @@ class App:
         if n_ver:
             extras.append(f"{n_ver} item(ns) precisam de conferência técnica e não serão instalados "
                           "automaticamente (veja o relatório).")
+        site = dp.avisos_site_fabricante(e)
+        self.paginas_site = [a["pagina"] for a in site]
+        for a in site:
+            extras.append(f"⚠ {a['peca']}: versão estável {a['versao']} disponível no site da AMD. A AMD só libera o download "
+                          "pelo site dela: clique em 'Abrir site da AMD', baixe e instale por lá.")
+        if site:
+            self.btn_site.pack(side="right", padx=(0, 10))
         if rec:
             self.msg.config(text=f"Encontramos {len(rec)} driver(s) para instalar ou atualizar.", foreground=AZUL)
             self.barra_sel.pack(fill="x", pady=(8, 6))
@@ -213,7 +223,7 @@ class App:
             self.btn.config(text="Verificar de novo", state="normal", command=self.verificar)
         if extras:
             self.aviso.config(text="\n".join(extras))
-            self.aviso.pack(anchor="w", pady=(4, 0))
+            self.aviso.pack(anchor="w", pady=(4, 0), after=self.passo)
 
     def _toggle(self, ev) -> None:
         iid = self.tree.identify_row(ev.y)
@@ -286,7 +296,7 @@ class App:
         else:
             self.msg.config(text=f"{ok} instalado(s), {falha} não puderam ser instalados.", foreground=LARANJA)
             self.aviso.config(text="Não instalados:\n" + "\n".join(f"• {c['title']} ({m})" for c, m in r["falha"]))
-            self.aviso.pack(anchor="w", pady=(4, 0))
+            self.aviso.pack(anchor="w", pady=(4, 0), after=self.passo)
         self.passo.config(text="Reinicie o computador para concluir." if r["reboot"] else
                           "Clique em Verificar de novo para conferir.")
         self.btn.config(text="Verificar de novo", state="normal", command=self.verificar)
@@ -294,6 +304,11 @@ class App:
                                                             "Salve seus arquivos. Reiniciar agora?"):
             subprocess.run(["shutdown.exe", "/r", "/t", "10", "/c", "DriverPrecision: concluindo instalação de drivers"],
                            creationflags=dp.NO_WINDOW)
+
+    def abrir_site(self) -> None:
+        import webbrowser
+        for u in dict.fromkeys(self.paginas_site):
+            webbrowser.open(u)
 
     def abrir_relatorio(self) -> None:
         if self.relatorio and os.path.exists(self.relatorio):
