@@ -88,7 +88,7 @@ Conferir o arquivo baixado: `Get-FileHash .\DriverPrecision.exe -Algorithm SHA25
 
 - [Microsoft](https://www.catalog.update.microsoft.com)
     - Windows Update e Microsoft Update Catalog
-- [Lenovo](https://pcsupport.lenovo.com), [Dell](https://www.dell.com/support), [HP](https://support.hp.com)
+- [Lenovo](https://pcsupport.lenovo.com), [Dell](https://www.dell.com/support), [HP](https://support.hp.com), [Asus](https://www.asus.com/br/support/) Entre outros...
     - Catálogos públicos de drivers por modelo
 - Intel, AMD, NVIDIA, Realtek e demais fabricantes
     - Drivers das peças, publicados e assinados por eles
