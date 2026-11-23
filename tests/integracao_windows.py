@@ -450,6 +450,7 @@ SONDAS = [
     ("Intel: DSA", "https://dsadata.intel.com/"),
     ("Intel: centro de downloads (Wi-Fi)", "https://www.intel.com/content/www/us/en/download/19351/windows-10-and-windows-11-wi-fi-drivers-for-intel-wireless-adapters.html"),
     ("Realtek: downloads", "https://www.realtek.com/Download/List?cate_id=593"),
+    ("AMD: detalhes do Adrenalin WHQL (Win11)", "https://www2.ati.com/drivers/installer/json/DrvDldDetails_Consumer_WHQL_Win11.json"),
     ("ASUS: sistemas do modelo M1502IA", "https://www.asus.com/support/api/product.asmx/GetPDOS?website=global&model=M1502IA&pdhashedid="),
     ("ASUS: drivers do M1502IA (Win11 64)", "https://www.asus.com/support/api/product.asmx/GetPDDrivers?website=global&model=M1502IA&osid=52&pdhashedid="),
     ("ASUS: BIOS do M1502IA", "https://www.asus.com/support/api/product.asmx/GetPDBIOS?website=global&model=M1502IA&pdhashedid="),
@@ -462,7 +463,7 @@ def t_sites() -> None:
     for nome, url in SONDAS:
         try:
             t = dp.http_get(url, timeout=40).decode("utf-8", "replace")
-            print(f"  [{len(t):>8} bytes] {nome}\n      {url[:120]}\n      " + re.sub(r"\s+", " ", t)[:700])
+            print(f"  [{len(t):>8} bytes] {nome}\n      {url[:120]}\n      " + re.sub(r"\s+", " ", t)[:700 if "AMD" not in nome else 4000])
         except Exception as ex:
             print(f"  [   falhou] {nome}: {type(ex).__name__}: {str(ex)[:150]}")
 
