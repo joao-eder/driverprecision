@@ -394,6 +394,50 @@ def t_pecas() -> None:
         (ok if b.get("level") == "exato" else falha)(f"{d['name']}: Hardware ID exato na lista oficial do pacote")
 
 
+# ------------------------------------------------------------------ NVIDIA ao vivo
+GPUS = [("NVIDIA GeForce GTX 1650", True), ("NVIDIA GeForce RTX 3060 Laptop GPU", True), ("NVIDIA GeForce RTX 4060", False),
+        ("NVIDIA GeForce RTX 3080", False), ("NVIDIA GeForce GTX 1660 SUPER", False)]
+
+
+def t_nvidia() -> None:
+    titulo("NVIDIA: site oficial ao vivo — produto certo, Game Ready WHQL estável, link oficial, assinatura da NVIDIA")
+    import driverprecision as dp
+    baixado = False
+    for nome, notebook in GPUS:
+        d = {"name": nome, "cls": "DISPLAY", "hwids": ["PCI\\VEN_10DE&DEV_0000"], "compat": [], "mids": [], "bus": "PCI",
+             "ver": "31.0.15.0000", "inbox": False, "sem_driver": False, "cands": []}
+        try:
+            r = dp.fonte_nvidia({"build": 26100, "notebook": notebook}, [d])
+        except Exception as ex:
+            falha(f"{nome}: {type(ex).__name__}: {ex}")
+            continue
+        print(f"    {nome:<40} {'notebook' if notebook else 'desktop':<8} {r[:120]}")
+        nv = [c for c in d["cands"] if c["source"] == "NV"]
+        if not nv:
+            falha(f"{nome}: nenhum driver encontrado no site da NVIDIA")
+            continue
+        c = nv[0]
+        okv = bool(re.fullmatch(r"\d{3}\.\d{2}", c["nv_version"])) and int(c["nv_version"].split(".")[0]) >= 500
+        (ok if okv and dp.estavel(c) else falha)(f"{nome}: {c['nv_version']} ({c['title'][:60]}) estável e recente")
+        (ok if c["url"].startswith("https://") and "nvidia.com/" in c["url"] else falha)(f"{nome}: link oficial {c['url'][:90]}")
+        if not baixado:
+            dp.OUT = Path(tempfile.mkdtemp())
+            t0 = time.time()
+            try:
+                arq = dp.baixar_um(c)
+                ok(f"{nome}: baixou {arq.stat().st_size / 1e6:.0f} MB em {time.time() - t0:.0f} s, assinatura da NVIDIA confere")
+                baixado = True
+            except Exception as ex:
+                falha(f"{nome}: download/assinatura: {ex}")
+    # a assinatura tem de ser do fabricante certo: o mesmo arquivo, esperando outro assinante, é recusado
+    if baixado:
+        try:
+            dp.baixar_um(dict(c, signer="Intel Corporation"))
+            falha("arquivo da NVIDIA aceito como se fosse da Intel")
+        except RuntimeError as ex:
+            ok(f"assinante errado é recusado: {str(ex)[:80]}")
+
+
 # ------------------------------------------------------------------ sondagem dos sites dos fabricantes
 SONDAS = [
     ("NVIDIA: tipos de produto", "https://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=1"),
@@ -452,10 +496,10 @@ def main() -> None:
     if os.name != "nt" or not os.environ.get("GITHUB_ACTIONS"):
         sys.exit("Só roda no Windows descartável do GitHub Actions (este teste ALTERA o sistema).")
     print("admin:", dp.is_admin(), "| python", sys.version.split()[0], "|", os.environ.get("RUNNER_OS"), flush=True)
-    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "pecas", "sites", "saude"]
+    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "pecas", "nvidia", "sites", "saude"]
     for q in quais:
         try:
-            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude, "pecas": t_pecas, "sites": t_sites}[q]()
+            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude, "pecas": t_pecas, "sites": t_sites, "nvidia": t_nvidia}[q]()
         except Exception:
             falha(f"{q}: exceção não tratada\n{traceback.format_exc()}")
     titulo(f"RESULTADO: {len(FALHAS)} falha(s), {len(AVISOS)} aviso(s)")

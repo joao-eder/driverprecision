@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.5.0] - 2026-11-23
+
+### Adicionado
+- **Drivers da NVIDIA direto do site oficial.** Para placas GeForce, o programa encontra o produto na lista oficial da NVIDIA (notebook ou desktop), consulta o driver **Game Ready WHQL** mais novo para o seu Windows (beta e não-WHQL descartados), baixa do servidor da NVIDIA, confere que a **assinatura digital é da NVIDIA**, instala em modo silencioso e confere a versão que ficou. Compara versões pelo número da NVIDIA (ex.: 581.57), não pelo prefixo do Windows. Se o site mudar, a fonte falha sozinha e o programa segue com o Windows Update e o Catálogo. Opção `--sem-fabricantes` na linha de comando.
+
 ## [1.4.5] - 2026-11-22
 
 ### Adicionado
@@ -142,6 +147,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.5.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.5.0
 [1.4.5]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.5
 [1.4.4]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.4
 [1.4.3]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.3

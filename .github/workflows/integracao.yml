@@ -50,6 +50,9 @@ jobs:
       - name: Peças (fabricante certo e só estável, Catálogo ao vivo)
         if: always()
         run: python -X utf8 tests/integracao_windows.py pecas
+      - name: NVIDIA (site oficial ao vivo, download e assinatura)
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py nvidia
       - name: Sondagem dos sites oficiais dos fabricantes
         if: always()
         run: python -X utf8 tests/integracao_windows.py sites

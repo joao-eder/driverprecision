@@ -67,7 +67,7 @@ CLASS_DRIVER_OK = [re.compile(p, re.I) for p in (
 def driver_de_classe(d: dict) -> bool:
     return any(p.match(i) for i in d["hwids"] + d["compat"] for p in CLASS_DRIVER_OK)
 
-PRIORIDADE = {"OEM": 0, "WU": 1, "CAT": 2}
+PRIORIDADE = {"OEM": 0, "NV": 1, "WU": 1, "CAT": 2}
 
 # --------------------------------------------------------------------------- utilidades
 
@@ -418,6 +418,7 @@ $devs=Get-CimInstance Win32_PnPEntity | ForEach-Object {
     bbmfr=$bb.Manufacturer; bbproduct=$bb.Product
     os=$os.Caption; build=[int]$os.BuildNumber; ubr=$cv.UBR; display=$cv.DisplayVersion
     arch=$env:PROCESSOR_ARCHITECTURE; computer=$env:COMPUTERNAME
+    notebook=[bool](Get-CimInstance Win32_Battery)
   }
   devices=@($devs)
 } | ConvertTo-Json -Depth 5 -Compress
@@ -736,6 +737,113 @@ def fonte_hp(sysinfo: dict, devs: list[dict], sistema: list[dict]) -> str:
     return f"ok - {len(sp)} softpaqs na referência {osv}.{rid}, {n} associações"
 
 
+# --------------------------------------------------------------------------- fonte: NVIDIA (site oficial)
+# O site nvidia.com/drivers usa por trás dois serviços: a lista de produtos (lookupValueSearch) e a busca de driver
+# (DriverManualLookup), que informa versão, se é WHQL/beta e o link oficial. Não são documentados pela NVIDIA:
+# se mudarem, esta fonte falha sozinha e o programa segue com o Windows Update e o Catálogo.
+
+NV_LISTA = "https://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID={tipo}&ParentID={pai}"
+NV_BUSCA = ("https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php"
+            "?func=DriverManualLookup&psid={psid}&pfid={pfid}&osID={osid}&languageCode=1033&beta=0&isWHQL=1"
+            "&dch=1&upCRD=0&sort1=0&numberOfResults=1")
+NV_OS = {11: 135, 10: 57}  # Windows 11 / Windows 10 64 bits
+
+
+def eh_nvidia(d: dict) -> bool:
+    return d.get("cls") == "DISPLAY" and any(re.search(r"\\VEN_10DE&", h) for h in d.get("hwids", []))
+
+
+def nv_de_windows(v: str | None) -> str:
+    """Versão do Windows (32.0.15.6636) -> versão da NVIDIA (566.36). Já no formato NVIDIA, devolve igual."""
+    p = [x for x in re.findall(r"\d+", v or "")]
+    if len(p) == 2:
+        return f"{int(p[0])}.{p[1]}"
+    if len(p) < 4:
+        return v or ""
+    dig = (p[2][-1] + p[3].zfill(4))  # 15.6636 -> "5" + "6636"
+    return f"{int(dig[:3])}.{dig[3:]}"
+
+
+def windows_de_nv(nv: str, prefixo: str = "32.0") -> str:
+    """566.36 -> 32.0.15.6636 (o prefixo não muda a comparação: comparamos pelo número da NVIDIA)."""
+    a, b = (nv.split(".") + ["0"])[:2]
+    dig = a.zfill(3) + b.zfill(2)[:2]
+    return f"{prefixo}.1{dig[0]}.{dig[1:]}"
+
+
+def _nv_norm(nome: str) -> str:
+    n = re.sub(r"\(r\)|\(tm\)|®|™|nvidia", " ", (nome or "").lower())
+    n = re.sub(r"\bwith max-q design\b|\bmax-q\b", " ", n)
+    return re.sub(r"\s+", " ", n).strip()
+
+
+def _nv_lista(tipo: int, pai: int | str = "") -> list[tuple[str, str]]:
+    xml = cached(NV_LISTA.format(tipo=tipo, pai=pai), f"nv_lista_{tipo}_{pai}.xml", 24 * 7, timeout=40)
+    raiz = ET.fromstring(xml)
+    return [(_txt(v, "Name"), _txt(v, "Value")) for v in raiz.iter("LookupValue") if _txt(v, "Value")]
+
+
+def nv_produto(nome: str, notebook: bool) -> tuple[str, str, str] | None:
+    """(psid, pfid, nome do produto) na lista oficial da NVIDIA, preferindo a série de notebook em notebook."""
+    alvo = _nv_norm(nome)
+    alvos = [alvo] + ([alvo + " laptop gpu"] if notebook and "laptop" not in alvo else []) + \
+        ([alvo.replace(" laptop gpu", "")] if "laptop gpu" in alvo else [])
+    series = [s for s in _nv_lista(2, 1) if re.search(r"geforce|titan", s[0], re.I)]
+    series.sort(key=lambda s: ("notebook" in s[0].lower()) != notebook)  # a do tipo do PC primeiro
+    for nome_serie, psid in series:
+        try:
+            produtos = _nv_lista(3, psid)
+        except Exception:
+            continue
+        for nome_prod, pfid in produtos:
+            if _nv_norm(nome_prod) in alvos:
+                return psid, pfid, nome_prod
+    return None
+
+
+def nv_driver(psid: str, pfid: str, osid: int) -> dict | None:
+    t = http_get(NV_BUSCA.format(psid=psid, pfid=pfid, osid=osid), timeout=40).decode("utf-8", "replace")
+    j = json.loads(t)
+    for item in j.get("IDS") or []:
+        info = item.get("downloadInfo") or {}
+        if str(info.get("Success", "1")) != "1" or not info.get("DownloadURL"):
+            continue
+        return {"versao": str(info.get("Version") or ""), "url": info["DownloadURL"],
+                "nome": urllib.parse.unquote(info.get("Name") or ""), "beta": str(info.get("IsBeta", "0")) == "1",
+                "whql": str(info.get("IsWHQL", "1")) == "1", "data": str(info.get("ReleaseDateTime") or "")[:40],
+                "tamanho": str(info.get("DownloadURLFileSize") or ""), "id": str(info.get("ID") or "")}
+    return None
+
+
+def fonte_nvidia(sysinfo: dict, devs: list[dict]) -> str:
+    achados = []
+    for d in devs:
+        if not eh_nvidia(d):
+            continue
+        prod = nv_produto(d.get("name") or "", bool(sysinfo.get("notebook")))
+        if not prod:
+            achados.append(f"{d.get('name')}: produto não encontrado na lista da NVIDIA")
+            continue
+        psid, pfid, nome_prod = prod
+        info = nv_driver(psid, pfid, NV_OS[win_major(sysinfo)])
+        if not info or info["beta"] or not info["whql"] or not re.fullmatch(r"\d{3}\.\d{2}", info["versao"]):
+            achados.append(f"{nome_prod}: sem driver WHQL estável")
+            continue
+        if not re.match(r"https://[\w.-]*nvidia\.com/", info["url"]):
+            achados.append(f"{nome_prod}: link fora do domínio da NVIDIA, ignorado")
+            continue
+        prefixo = ".".join((d.get("ver") or "32.0").split(".")[:2])
+        d["cands"].append({
+            "cid": f"NV:{info['id'] or info['versao']}", "source": "NV", "source_name": "NVIDIA (site oficial)",
+            "title": f"NVIDIA {info['nome'] or 'Game Ready Driver'} {info['versao']} ({nome_prod})",
+            "version": windows_de_nv(info["versao"], prefixo), "nv_version": info["versao"], "date": info["data"],
+            "provider": "NVIDIA", "match_id": d["hwids"][0] if d["hwids"] else "", "level": "fabricante", "kind": "driver",
+            "url": info["url"], "file": info["url"].rsplit("/", 1)[-1], "signer": "NVIDIA",
+            "category": "Display", "size": 0})
+        achados.append(f"{nome_prod}: {info['versao']}")
+    return "ok - " + "; ".join(achados) if achados else "ok - nenhuma placa NVIDIA"
+
+
 # --------------------------------------------------------------------------- fonte: Windows Update
 
 PS_WU = r"""
@@ -917,6 +1025,16 @@ CLASSES_MAIS_NOVA_DA_PECA = {"NET", "BLUETOOTH", "DISPLAY"}
 CLASSES_VALIDADA_PELO_PC = {"MEDIA", "AUDIOENDPOINT"}
 
 
+def _formato_comparavel(d: dict):
+    """NVIDIA: compara pelo número da NVIDIA (566.36), não pelo prefixo do Windows (31.0 x 32.0), que muda com o WDDM."""
+    return nv_de_windows if eh_nvidia(d) else (lambda v: v)
+
+
+def _versao_comparavel(d: dict):
+    f = _formato_comparavel(d)
+    return lambda v: vtuple(f(v))
+
+
 def _nivel_confianca(c: dict, peca: tuple[str, str] | None, pc_oem: str) -> int | None:
     """0 = fabricante do PC validou ESTA peça (ID exato no catálogo dele); 1 = driver do fabricante da peça;
     2 = fabricante do PC só pelo chip (a placa pode ter sido trocada); None = não serve."""
@@ -972,7 +1090,8 @@ def avaliar(d: dict) -> None:
             validos.append(c)
     # 1º quem garante que o driver é DESTA peça; dentro do mesmo nível, a versão estável mais nova
     # (pacote sem versão informada só vence se nenhum outro tiver versão: "sem versão" não é "a mais nova")
-    validos.sort(key=lambda c: (c["confianca"], not vtuple(c.get("version")), tuple(-x for x in vtuple(c.get("version"))),
+    vt = _versao_comparavel(d)
+    validos.sort(key=lambda c: (c["confianca"], not vt(c.get("version")), tuple(-x for x in vt(c.get("version"))),
                                 PRIORIDADE[c["source"]]))
     d["melhor"] = validos[0] if validos else None
     d["peca_fora_do_catalogo"] = bool(peca and pc_oem and d.get("oem_consultado") and d["bus"] in ("PCI", "USB", "HDAUDIO", "BTH")
@@ -993,7 +1112,7 @@ def avaliar(d: dict) -> None:
             d["status"] = "OK"
             d["motivo"] = "driver de classe do Windows (correto para este tipo de dispositivo)" if d["inbox"] else "nenhuma versão mais nova nas fontes"
     else:
-        c = vcmp(b.get("version"), atual)
+        c = vcmp(*map(_formato_comparavel(d), (b.get("version"), atual)))
         if d["inbox"]:
             d["status"] = "SUBSTITUIR"
             d["motivo"] = "driver genérico (inbox) em uso; existe driver específico para este hardware"
@@ -1023,9 +1142,10 @@ def avaliar(d: dict) -> None:
             d["motivo"] = "instalado é igual ou mais novo que o da fonte"
     # alternativa mais nova não validada pelo OEM
     if b and b["source"] == "OEM":
-        mais_novo = [a for a in d["alternativas"] if a["source"] != "OEM" and a.get("level") == "exato"
-                     and vcmp(a.get("version"), b.get("version")) == 1]
-        d["alt_nova"] = max(mais_novo, key=lambda a: vtuple(a.get("version")), default=None)
+        fc = _formato_comparavel(d)
+        mais_novo = [a for a in d["alternativas"] if a["source"] != "OEM" and a.get("level") in ("exato", "fabricante")
+                     and vcmp(fc(a.get("version")), fc(b.get("version"))) == 1]
+        d["alt_nova"] = max(mais_novo, key=lambda a: vtuple(fc(a.get("version"))), default=None)
 
 
 ORDEM = {"SEM DRIVER": 0, "INSTALAR": 1, "SUBSTITUIR": 2, "ATUALIZAR": 3, "GENÉRICO": 4, "VERIFICAR": 5, "OK": 6}
@@ -1096,6 +1216,13 @@ def scan(args) -> dict:
         except Exception as e:
             fontes["Windows Update"] = f"falhou: {str(e)[:200]}"
         log("      " + fontes["Windows Update"])
+    if not getattr(args, "sem_fabricantes", False) and any(eh_nvidia(d) for d in devs):
+        log("      Site oficial da NVIDIA (Game Ready WHQL)...")
+        try:
+            fontes["NVIDIA (site oficial)"] = fonte_nvidia(sysinfo, devs)
+        except Exception as e:
+            fontes["NVIDIA (site oficial)"] = f"falhou: {str(e)[:200]}"
+        log("      " + fontes["NVIDIA (site oficial)"])
     log("[4/5] Microsoft Update Catalog por Hardware ID...")
     if not args.sem_catalogo:
         try:
@@ -1328,6 +1455,9 @@ def baixar_um(c: dict) -> Path | None:
     st, sub = assinatura(arq)
     if st != "Valid":
         raise RuntimeError(f"assinatura digital inválida ({st}) - não use este arquivo")
+    if c.get("signer") and c["signer"].lower() not in sub.lower():  # ex.: driver do site da NVIDIA tem de ser assinado pela NVIDIA
+        arq.unlink(missing_ok=True)
+        raise RuntimeError(f"assinado por '{sub}', não por {c['signer']} - arquivo apagado")
     log(f"  Assinatura válida: {sub}")
     return arq
 
@@ -1387,6 +1517,9 @@ def instalar_um(c: dict) -> tuple[bool, bool, str]:
     arq = baixar_um(c)
     assert arq
     pasta = arq.parent
+    if c["source"] == "NV":  # instalador oficial da NVIDIA, modo silencioso, sem reiniciar
+        rc = _run([str(arq), "-s", "-noreboot", "-noeula"], pasta, 3600)
+        return rc in RC_OK or rc == 1, rc in RC_REBOOT, f"instalador da NVIDIA: código {rc}"
     if c["source"] == "CAT":
         x = pasta / "extraido"
         expand_cab(arq, x)
@@ -1454,8 +1587,12 @@ def versao_instalada(instance_id: str) -> str:
 def conferir_versao(c: dict, msg: str) -> tuple[bool, str]:
     """Depois de voltar para a versão do fabricante do PC: o Windows costuma preferir o driver mais novo."""
     agora = versao_instalada(c["alvo_id"])
-    if agora and vcmp(agora, c.get("version")) == 0:
+    f = nv_de_windows if c.get("source") == "NV" else (lambda v: v)
+    if agora and vcmp(f(agora), f(c.get("version"))) == 0:
         return True, msg + f" (conferido: {agora})"
+    if c.get("source") == "NV":
+        return False, (f"o driver de vídeo continua {nv_de_windows(agora) or '?'}: o instalador da NVIDIA não concluiu a troca "
+                       f"para {c.get('nv_version')}. Reinicie e verifique de novo; se continuar, instale pelo nvidia.com.")
     return False, (f"o Windows manteve o driver {agora or '?'} em vez do {c.get('version')} do fabricante do PC. "
                    "Para trocar: Gerenciador de Dispositivos > o aparelho > Desinstalar dispositivo (marque 'Tentar remover "
                    "o driver') e rode a instalação de novo. Ligue também o ajuste 'Windows Update não troca drivers' "
@@ -1471,7 +1608,7 @@ def instalar_lista(cs: list[dict], progresso=None) -> dict:
         log(f"\n[{n}/{len(cs)}] {c['title']}  ({c['cid']})")
         try:
             ok, rb, msg = instalar_um(c)
-            if ok and c.get("voltar_versao") and c.get("alvo_id"):
+            if ok and (c.get("voltar_versao") or c["source"] == "NV") and c.get("alvo_id"):
                 ok, msg = conferir_versao(c, msg)
         except Exception as ex:
             ok, rb, msg = False, False, str(ex)
@@ -1530,6 +1667,7 @@ def main() -> None:
     s.add_argument("--sem-oem", action="store_true")
     s.add_argument("--sem-wu", action="store_true")
     s.add_argument("--sem-catalogo", action="store_true")
+    s.add_argument("--sem-fabricantes", action="store_true", help="não consultar sites dos fabricantes de peças (NVIDIA)")
     s.add_argument("--nao-abrir", action="store_true", help="não abrir o relatório ao final")
     b = sub.add_parser("baixar", help="baixa e valida (hash + assinatura) sem instalar")
     b.add_argument("ids", nargs="+")

@@ -110,6 +110,7 @@ Opções do scan: `--sem-oem`, `--sem-wu`, `--sem-catalogo`, `--nao-abrir`.
 | 1 | Lenovo `catalog/<MT>_Win11.xml` | Machine Type + Hardware ID + versão do driver | SHA-256 do descritor e do instalador |
 | 1 | Dell `CatalogPC.cab` | SystemSKU + `PCIInfo` + SO | MD5 + Authenticode |
 | 1 | HP HPIA `platformList` / `ref/<plat>_64_<SO>.cab` | Platform ID (placa) + Hardware ID + SO | SHA-256 do softpaq |
+| 2 | Site oficial da NVIDIA (placas GeForce) | produto na lista oficial + Windows; só Game Ready WHQL | assinatura digital da NVIDIA |
 | 2 | Windows Update (API WUA, só busca) | Hardware ID casado pelo próprio Windows | assinado pelo WU |
 | 3 | Microsoft Update Catalog | Hardware ID mais específico (SUBSYS / VID&PID) | Authenticode |
 
@@ -153,7 +154,7 @@ Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o 
 
 - A Dell não publica Hardware ID de alguns pacotes (áudio, USB etc.): eles aparecem na seção "pacotes do modelo" como VERIFICAR.
 - Lenovo consumer (IdeaPad/Legion) nem sempre tem catálogo público por MT: nesse caso usa WU + Catalog.
-- GPUs dedicadas (NVIDIA/AMD) em PCs montados: o Catalog tem os drivers WHQL, mas o mais recente costuma sair antes no site do fabricante da GPU.
+- NVIDIA: o driver vem do site oficial (Game Ready WHQL). AMD e Intel ainda vêm do Windows Update e do Catálogo da Microsoft, que às vezes recebem a versão mais nova depois do site do fabricante.
 - Somente Windows 10/11 x64.
 
 ## Desenvolvimento
