@@ -53,6 +53,9 @@ jobs:
       - name: NVIDIA (site oficial ao vivo, download e assinatura)
         if: always()
         run: python -X utf8 tests/integracao_windows.py nvidia
+      - name: AMD (site oficial ao vivo, download e assinatura)
+        if: always()
+        run: python -X utf8 tests/integracao_windows.py amd
       - name: Sondagem dos sites oficiais dos fabricantes
         if: always()
         run: python -X utf8 tests/integracao_windows.py sites

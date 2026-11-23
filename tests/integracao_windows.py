@@ -438,6 +438,38 @@ def t_nvidia() -> None:
             ok(f"assinante errado é recusado: {str(ex)[:80]}")
 
 
+# ------------------------------------------------------------------ AMD ao vivo
+def t_amd() -> None:
+    titulo("AMD: site oficial ao vivo — só WHQL, lista de chips aceitos, link oficial, assinatura da AMD")
+    import driverprecision as dp
+    pacotes = dp.amd_pacotes()
+    (ok if pacotes else falha)(f"{len(pacotes)} pacote(s) WHQL publicados pela AMD")
+    for p in pacotes:
+        print(f"    Adrenalin {p.get('externalbuildversion')} | interna {str(p.get('internalbuildversion'))[:30]} | "
+              f"{len(p.get('skus') or [])} chips | {p.get('releasedate')} | {str(p.get('fullbuild'))[:90]}")
+        (ok if dp.estavel({"title": p.get("edition"), "version": p.get("externalbuildversion")}) else falha)(
+            f"{p.get('externalbuildversion')}: estável")
+        (ok if str(p.get("fullbuild", "")).startswith("https://") and re.search(r"(amd|ati)\.com/", p["fullbuild"]) else falha)(
+            f"{p.get('externalbuildversion')}: link oficial")
+    if not pacotes:
+        return
+    sku = (pacotes[0].get("skus") or ["0000-00"])[0]
+    dev_id, rev = sku.split("-")
+    d = {"id": "", "name": f"AMD Radeon (chip {sku})", "cls": "DISPLAY", "hwids": [f"PCI\\VEN_1002&DEV_{dev_id}&SUBSYS_00000000&REV_{rev}"],
+         "compat": [], "mids": [], "bus": "PCI", "ver": "32.0.0.0", "inbox": False, "sem_driver": False, "cands": []}
+    print("   ", dp.fonte_amd({"build": 26100}, [d]))
+    c = next((x for x in d["cands"] if x["source"] == "AMD"), None)
+    (ok if c else falha)(f"chip {sku} da lista recebeu o pacote da AMD")
+    if c:
+        dp.OUT = Path(tempfile.mkdtemp())
+        t0 = time.time()
+        try:
+            arq = dp.baixar_um(c)
+            ok(f"baixou {arq.stat().st_size / 1e6:.0f} MB em {time.time() - t0:.0f} s, assinatura da AMD confere")
+        except Exception as ex:
+            falha(f"download/assinatura do Adrenalin: {ex}")
+
+
 # ------------------------------------------------------------------ sondagem dos sites dos fabricantes
 SONDAS = [
     ("NVIDIA: tipos de produto", "https://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=1"),
@@ -497,10 +529,10 @@ def main() -> None:
     if os.name != "nt" or not os.environ.get("GITHUB_ACTIONS"):
         sys.exit("Só roda no Windows descartável do GitHub Actions (este teste ALTERA o sistema).")
     print("admin:", dp.is_admin(), "| python", sys.version.split()[0], "|", os.environ.get("RUNNER_OS"), flush=True)
-    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "pecas", "nvidia", "sites", "saude"]
+    quais = sys.argv[1:] or ["gui", "otimiza", "links", "jogos", "oem", "drivers", "pecas", "nvidia", "amd", "sites", "saude"]
     for q in quais:
         try:
-            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude, "pecas": t_pecas, "sites": t_sites, "nvidia": t_nvidia}[q]()
+            {"otimiza": t_otimiza, "jogos": t_jogos, "links": t_links, "drivers": t_drivers, "oem": t_oem, "gui": t_gui, "saude": t_saude, "pecas": t_pecas, "sites": t_sites, "nvidia": t_nvidia, "amd": t_amd}[q]()
         except Exception:
             falha(f"{q}: exceção não tratada\n{traceback.format_exc()}")
     titulo(f"RESULTADO: {len(FALHAS)} falha(s), {len(AVISOS)} aviso(s)")

@@ -67,7 +67,7 @@ CLASS_DRIVER_OK = [re.compile(p, re.I) for p in (
 def driver_de_classe(d: dict) -> bool:
     return any(p.match(i) for i in d["hwids"] + d["compat"] for p in CLASS_DRIVER_OK)
 
-PRIORIDADE = {"OEM": 0, "NV": 1, "WU": 1, "CAT": 2}
+PRIORIDADE = {"OEM": 0, "NV": 1, "AMD": 1, "WU": 1, "CAT": 2}
 
 # --------------------------------------------------------------------------- utilidades
 
@@ -844,6 +844,89 @@ def fonte_nvidia(sysinfo: dict, devs: list[dict]) -> str:
     return "ok - " + "; ".join(achados) if achados else "ok - nenhuma placa NVIDIA"
 
 
+# --------------------------------------------------------------------------- fonte: AMD (site oficial)
+# A AMD publica, para o instalador do Adrenalin, um version.json que aponta para os detalhes de cada pacote WHQL
+# (versão, link, notas e a lista de chips aceitos no formato DEV-REV). Beta fica num arquivo separado e não é usado.
+
+AMD_VERSAO = "https://drivers.amd.com/drivers/installer/json/version.json"
+
+
+def eh_amd_video(d: dict) -> bool:
+    return d.get("cls") == "DISPLAY" and any(re.search(r"\\VEN_1002&", h) for h in d.get("hwids", []))
+
+
+def amd_sku(d: dict) -> str:
+    """'1636-C7' a partir de PCI\\VEN_1002&DEV_1636&...&REV_C7."""
+    for h in d.get("hwids", []):
+        m = re.search(r"VEN_1002&DEV_([0-9A-F]{4}).*&REV_([0-9A-F]{2})", h)
+        if m:
+            return f"{m.group(1)}-{m.group(2)}"
+    return ""
+
+
+def amd_pacotes() -> list[dict]:
+    """Pacotes WHQL publicados pela AMD (podem ser vários: linha atual e linhas de placas mais antigas)."""
+    idx = json.loads(cached(AMD_VERSAO, "amd_version.json", 12, timeout=40).decode("utf-8-sig"))
+    urls = [v["url"] for k, v in idx.items() if isinstance(v, dict) and v.get("url")
+            and re.search(r"whql", k, re.I) and not re.search(r"beta", k, re.I) and re.search(r"consumer", k, re.I)]
+    out, vistos = [], set()
+    for u in dict.fromkeys(urls):
+        if not re.match(r"https?://[\w.-]*(amd|ati)\.com/", u):
+            continue
+        nome = "amd_" + hashlib.sha1(u.encode()).hexdigest()[:12] + ".json"
+        dados = json.loads(cached(u, nome, 12, timeout=40).decode("utf-8-sig"))
+        for p in dados if isinstance(dados, list) else [dados]:
+            if p.get("fullbuild") and p["fullbuild"] not in vistos:
+                vistos.add(p["fullbuild"])
+                out.append(p)
+    return out
+
+
+def amd_versao_instalada(instance_id: str) -> str:
+    """Versão de lançamento da AMD gravada pelo driver instalado (mesmo formato do site: 26.20.29.02-...)."""
+    ps = ("$k=(Get-PnpDeviceProperty -InstanceId '" + instance_id.replace("'", "''") + "' -KeyName DEVPKEY_Device_Driver).Data;"
+          "(Get-ItemProperty \"HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\$k\" -ErrorAction Stop).ReleaseVersion")
+    try:
+        return powershell(ps, 60).strip().splitlines()[-1].strip()
+    except Exception:
+        return ""
+
+
+def _amd_num(v: str) -> tuple:
+    return vtuple((v or "").split("-")[0])
+
+
+def fonte_amd(sysinfo: dict, devs: list[dict]) -> str:
+    pacotes = amd_pacotes()
+    achados = []
+    for d in devs:
+        if not eh_amd_video(d):
+            continue
+        sku = amd_sku(d)
+        aceitos = [p for p in pacotes if sku and sku in (p.get("skus") or []) and estavel({"title": p.get("edition"),
+                                                                                         "version": p.get("externalbuildversion")})]
+        if not aceitos:
+            achados.append(f"{d.get('name')} ({sku or 'sem ID'}): não consta na lista de placas do Adrenalin WHQL")
+            continue
+        p = max(aceitos, key=lambda p: _amd_num(p.get("internalbuildversion")))
+        url = p["fullbuild"]
+        if not re.match(r"https://[\w.-]*(amd|ati)\.com/", url):
+            achados.append(f"{d.get('name')}: link fora do domínio da AMD, ignorado")
+            continue
+        d["amd_release"] = amd_versao_instalada(d["id"]) if d.get("id") else ""
+        d["cands"].append({
+            "cid": f"AMD:{p.get('externalbuildversion')}", "source": "AMD", "source_name": "AMD (site oficial)",
+            "title": f"{p.get('edition') or 'AMD Software: Adrenalin Edition'} {p.get('externalbuildversion')}",
+            "version": (p.get("internalbuildversion") or "").split("-")[0], "amd_version": p.get("externalbuildversion"),
+            "date": p.get("releasedate"), "provider": "Advanced Micro Devices", "match_id": sku, "level": "fabricante",
+            "kind": "driver", "url": url, "file": url.rsplit("/", 1)[-1], "signer": "Advanced Micro Devices",
+            "readme": p.get("releasenotes") or "", "interativo": True, "category": "Display",
+            "size": int(float(p.get("fullbuildfilesize") or 0) * 1e6)})
+        achados.append(f"{d.get('name')} ({sku}): Adrenalin {p.get('externalbuildversion')}" +
+                       ("" if d["amd_release"] else " (versão instalada não informada pelo driver: não comparado)"))
+    return "ok - " + "; ".join(achados) if achados else "ok - nenhuma placa AMD"
+
+
 # --------------------------------------------------------------------------- fonte: Windows Update
 
 PS_WU = r"""
@@ -1072,6 +1155,18 @@ def avaliar(d: dict) -> None:
     if eh_firmware(d):
         _avaliar_firmware(d)
         return
+    amd = [c for c in d["cands"] if c["source"] == "AMD"]
+    if amd:
+        rel = d.get("amd_release") or ""
+        c = amd[0]
+        if rel and _amd_num(c["version"]) > _amd_num(rel):
+            # o site da AMD tem Adrenalin estável mais novo, e esta placa está na lista oficial dele: ele é o escolhido
+            d["melhor"], d["alternativas"], d["instaveis"] = c, [x for x in d["cands"] if x is not c], 0
+            d["fabricante_peca"], d["status"] = "AMD", "ATUALIZAR"
+            d["motivo"] = f"Adrenalin instalado {rel.split('-')[0]} → {c['amd_version']} ({c['version']}), do site da AMD"
+            d["alt_nova"] = None
+            return
+        d["cands"] = [x for x in d["cands"] if x["source"] != "AMD"]  # não é mais novo (ou não dá para comparar)
     peca = fabricante_peca(d)
     d["fabricante_peca"] = peca[0] if peca else ""
     pc_oem = d.get("pc_oem") or ""
@@ -1216,6 +1311,13 @@ def scan(args) -> dict:
         except Exception as e:
             fontes["Windows Update"] = f"falhou: {str(e)[:200]}"
         log("      " + fontes["Windows Update"])
+    if not getattr(args, "sem_fabricantes", False) and any(eh_amd_video(d) for d in devs):
+        log("      Site oficial da AMD (Adrenalin WHQL)...")
+        try:
+            fontes["AMD (site oficial)"] = fonte_amd(sysinfo, devs)
+        except Exception as e:
+            fontes["AMD (site oficial)"] = f"falhou: {str(e)[:200]}"
+        log("      " + fontes["AMD (site oficial)"])
     if not getattr(args, "sem_fabricantes", False) and any(eh_nvidia(d) for d in devs):
         log("      Site oficial da NVIDIA (Game Ready WHQL)...")
         try:
@@ -1517,6 +1619,10 @@ def instalar_um(c: dict) -> tuple[bool, bool, str]:
     arq = baixar_um(c)
     assert arq
     pasta = arq.parent
+    if c["source"] == "AMD":  # instalador oficial da AMD, conferido; a pessoa segue as telas dele
+        log("  abrindo o instalador oficial da AMD: siga as telas dele (o programa espera terminar)")
+        rc = subprocess.run([str(arq)], cwd=pasta).returncode
+        return rc in RC_OK, rc in RC_REBOOT, f"instalador da AMD: código {rc}"
     if c["source"] == "NV":  # instalador oficial da NVIDIA, modo silencioso, sem reiniciar
         rc = _run([str(arq), "-s", "-noreboot", "-noeula"], pasta, 3600)
         return rc in RC_OK or rc == 1, rc in RC_REBOOT, f"instalador da NVIDIA: código {rc}"
@@ -1586,6 +1692,12 @@ def versao_instalada(instance_id: str) -> str:
 
 def conferir_versao(c: dict, msg: str) -> tuple[bool, str]:
     """Depois de voltar para a versão do fabricante do PC: o Windows costuma preferir o driver mais novo."""
+    if c.get("source") == "AMD":
+        agora = amd_versao_instalada(c["alvo_id"])
+        if agora and _amd_num(agora) >= _amd_num(c["version"]):
+            return True, msg + f" (conferido: {agora.split('-')[0]})"
+        return False, (f"o driver de vídeo continua {(agora or '?').split('-')[0]}: o instalador da AMD não concluiu a troca "
+                       f"para {c.get('amd_version')}. Reinicie e verifique de novo; se continuar, instale pelo amd.com.")
     agora = versao_instalada(c["alvo_id"])
     f = nv_de_windows if c.get("source") == "NV" else (lambda v: v)
     if agora and vcmp(f(agora), f(c.get("version"))) == 0:
@@ -1608,7 +1720,7 @@ def instalar_lista(cs: list[dict], progresso=None) -> dict:
         log(f"\n[{n}/{len(cs)}] {c['title']}  ({c['cid']})")
         try:
             ok, rb, msg = instalar_um(c)
-            if ok and (c.get("voltar_versao") or c["source"] == "NV") and c.get("alvo_id"):
+            if ok and (c.get("voltar_versao") or c["source"] in ("NV", "AMD")) and c.get("alvo_id"):
                 ok, msg = conferir_versao(c, msg)
         except Exception as ex:
             ok, rb, msg = False, False, str(ex)

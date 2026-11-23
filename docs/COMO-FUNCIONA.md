@@ -111,6 +111,7 @@ Opções do scan: `--sem-oem`, `--sem-wu`, `--sem-catalogo`, `--nao-abrir`.
 | 1 | Dell `CatalogPC.cab` | SystemSKU + `PCIInfo` + SO | MD5 + Authenticode |
 | 1 | HP HPIA `platformList` / `ref/<plat>_64_<SO>.cab` | Platform ID (placa) + Hardware ID + SO | SHA-256 do softpaq |
 | 2 | Site oficial da NVIDIA (placas GeForce) | produto na lista oficial + Windows; só Game Ready WHQL | assinatura digital da NVIDIA |
+| 2 | Site oficial da AMD (placas Radeon) | chip + revisão na lista oficial do pacote; só Adrenalin WHQL | assinatura digital da AMD |
 | 2 | Windows Update (API WUA, só busca) | Hardware ID casado pelo próprio Windows | assinado pelo WU |
 | 3 | Microsoft Update Catalog | Hardware ID mais específico (SUBSYS / VID&PID) | Authenticode |
 
@@ -154,7 +155,8 @@ Peça trocada ou que não consta no catálogo: o relatório avisa e recomenda o 
 
 - A Dell não publica Hardware ID de alguns pacotes (áudio, USB etc.): eles aparecem na seção "pacotes do modelo" como VERIFICAR.
 - Lenovo consumer (IdeaPad/Legion) nem sempre tem catálogo público por MT: nesse caso usa WU + Catalog.
-- NVIDIA: o driver vem do site oficial (Game Ready WHQL). AMD e Intel ainda vêm do Windows Update e do Catálogo da Microsoft, que às vezes recebem a versão mais nova depois do site do fabricante.
+- NVIDIA e AMD: o driver de vídeo vem do site oficial (Game Ready / Adrenalin WHQL). O instalador da AMD abre para a pessoa seguir as telas.
+- Intel: bloqueia acesso automático ao site; os drivers Intel vêm do Windows Update e do Catálogo da Microsoft, onde a própria Intel publica. A versão mais nova pode aparecer antes no site da Intel (ferramenta oficial: Intel Driver & Support Assistant).
 - Somente Windows 10/11 x64.
 
 ## Desenvolvimento

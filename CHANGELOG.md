@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versões seguem [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.6.0] - 2026-11-23
+
+### Adicionado
+- **Drivers da AMD direto do site oficial (Adrenalin WHQL).** O programa lê a lista que a AMD publica para cada versão estável, com os chips aceitos (código do chip + revisão). Só oferece a versão se a sua placa estiver literalmente nessa lista — placas mais antigas recebem a linha de driver delas. A comparação usa a versão de lançamento da AMD gravada no driver instalado. Baixa só do domínio da AMD, exige a assinatura digital da AMD e abre o instalador oficial para você seguir as telas; depois confere a versão que ficou. Beta nunca é consultado.
+
 ## [1.5.0] - 2026-11-23
 
 ### Adicionado
@@ -147,6 +152,7 @@ Versão de correções, depois de testar tudo num Windows de verdade (Windows Se
 - Comandos `baixar` (hash + Authenticode) e `instalar` (admin, confirmação, ponto de restauração; BIOS/firmware nunca automático).
 - `DriverPrecision.exe` gerado pelo GitHub Actions a cada release.
 
+[1.6.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.6.0
 [1.5.0]: https://github.com/joao-eder/driverprecision/releases/tag/v1.5.0
 [1.4.5]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.5
 [1.4.4]: https://github.com/joao-eder/driverprecision/releases/tag/v1.4.4
