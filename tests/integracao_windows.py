@@ -461,6 +461,18 @@ def t_amd() -> None:
     c = next((x for x in d["cands"] if x["source"] == "AMD"), None)
     (ok if c else falha)(f"chip {sku} da lista recebeu o pacote da AMD")
     if c:
+        import urllib.request
+        for rotulo, url in (("completo", c["url"]), ("leve (minimal setup)", next((p.get("minimalbuild") for p in pacotes
+                                                                                   if p.get("minimalbuild")), ""))):
+            if not url:
+                continue
+            try:  # diagnóstico: o que o servidor da AMD devolve para o download direto
+                with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": dp.UA}), timeout=60) as r:
+                    cab = r.read(512)
+                    print(f"    {rotulo}: HTTP {r.status} | {r.headers.get('Content-Type')} | {r.headers.get('Content-Length')} bytes"
+                          f" | começa com {cab[:2]!r} | {cab[:160]!r}")
+            except Exception as ex:
+                print(f"    {rotulo}: {type(ex).__name__}: {str(ex)[:160]}")
         dp.OUT = Path(tempfile.mkdtemp())
         t0 = time.time()
         try:

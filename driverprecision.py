@@ -1556,7 +1556,11 @@ def baixar_um(c: dict) -> Path | None:
         log("  MD5 confere com o catálogo do fabricante")
     st, sub = assinatura(arq)
     if st != "Valid":
-        raise RuntimeError(f"assinatura digital inválida ({st}) - não use este arquivo")
+        tam = arq.stat().st_size
+        cab = arq.read_bytes()[:2] if tam else b""
+        arq.unlink(missing_ok=True)  # arquivo recusado não fica no disco
+        tipo = "não é um programa (o servidor devolveu outra coisa)" if cab != b"MZ" else "programa sem assinatura válida"
+        raise RuntimeError(f"assinatura digital inválida ({st}; {tam / 1e6:.1f} MB; {tipo}) - arquivo apagado")
     if c.get("signer") and c["signer"].lower() not in sub.lower():  # ex.: driver do site da NVIDIA tem de ser assinado pela NVIDIA
         arq.unlink(missing_ok=True)
         raise RuntimeError(f"assinado por '{sub}', não por {c['signer']} - arquivo apagado")
