@@ -195,6 +195,7 @@ class App:
                 origem = b["source_name"].split(" (")[0]
             else:  # fabricante da peça, entregue pelo Windows Update / Catálogo da Microsoft
                 quem = re.sub(r",? (Inc|Corporation|Corp|Co|Ltd|Semiconductor)\.?.*$", "", b.get("provider") or "", flags=re.I)
+                quem = {"advanced micro devices": "AMD", "realtek": "Realtek", "intel": "Intel"}.get(quem.lower(), quem)
                 origem = quem or "Microsoft (WHQL)"
             self.tree.insert("", "end", iid=iid, values=("☑", d["name"], d.get("ver") or "nenhum", novo, origem))
         extras = []

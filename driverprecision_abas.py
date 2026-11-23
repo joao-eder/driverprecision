@@ -248,7 +248,8 @@ ROT_EST = {"ATIVO": "● Ativo", "PADRÃO": "○ Padrão", "PARCIAL": "◐ Parci
 TEXTOS_PERFIL = {
     "jogos": ("Otimização avançada",
               "Ajustes profundos do Windows para jogos. Marque o que quer aplicar. Antes de mexer, o valor "
-              "original de cada configuração é guardado e um ponto de restauração é criado — tudo pode ser desfeito por aqui."),
+              "original de cada configuração é guardado (e, com a Proteção do sistema ligada, é criado um ponto de restauração) — "
+              "tudo pode ser desfeito por aqui."),
     "escritorio": ("Escritório",
                    "Para trabalhar com muitas abas, planilhas (Excel, Google Planilhas, LibreOffice), pastas e impressoras "
                    "da rede e VPN, com mais segurança. O valor original de cada configuração é guardado e tudo pode ser desfeito."),
